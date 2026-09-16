@@ -19,6 +19,34 @@ never there. Do not run it unattended, and do not offer to.
 
 ---
 
+## 0. Which of the two jobs this is
+
+**Check for `process.json` first.** It decides everything below.
+
+**If there is none, this is a first adoption** — steps 1 to 7.
+
+**If there is one, this repository has already adopted, and you are topping it up.** Adoption happens
+once; reach keeps changing, so a repository set up against an earlier version is missing whatever
+arrived since — and nothing about that is visible, because the gate passes and a mechanism that was
+never wired in simply never fires.
+
+In that case, **do not tag, do not archive, and do not re-classify anything.** Those steps replace a
+workflow, and this repository has already replaced its own; running them again would archive the
+structure you are meant to be completing and re-sort claims that are already claims.
+
+Instead:
+
+```shell
+pwsh Scripts/reach.ps1 audit
+```
+
+That names every gap, why it matters, and the fix. Show the list, say which ones you propose to fill,
+and fill only what the owner agrees to. Then set `"reach"` in `process.json` to the installed version,
+so the next audit measures from here.
+
+A top-up writes; it never replaces. If filling a gap would overwrite a document the owner has written
+in — a spine, a unit document — say so and stop rather than doing it.
+
 ## 1. Read what is there, and measure it
 
 Before proposing anything:
@@ -37,8 +65,7 @@ later step depends on this being measured rather than remembered.
 Two layers, and the split is **team size, not language**.
 
 **The universal layer** — every repository gets this. The tier contract and a single verdict, the
-gate with its checks, the traps, and the memory conventions. It touches no branching and imposes no
-document structure.
+gate with its checks, and the traps. It touches no branching and imposes no document structure.
 
 **The governance layer** — capped documents, the unit roster with `built`/`unbuilt`, evidence marks,
 the `Open:` inbox, and the split of work by who verifies it. This assumes **one owner who answers
@@ -81,26 +108,24 @@ Converting behaviour rules into claims is the most valuable thing adoption does,
 uncomfortable part: a document full of confident prose becomes a roster where most rows have nothing
 proving them. That is not the adoption going wrong. That was already true.
 
-## 5. Write `process.json`
+## 5. Write the documents and `process.json`
 
-Five parameters, and resist a sixth:
+Start from the plugin's templates rather than from a blank page — the gate reads the shape of these
+documents, and that contract lives nowhere else:
 
-```json
-{
-  "project": "the name",
-  "spine":    { "path": "Docs/ARCHITECTURE.md", "cap": 0 },
-  "unit":     { "noun": "system", "dir": "Docs/systems", "cap": 0 },
-  "evidence": { "noun": "scenario", "mark": "// scenario:", "search": ["Tests"] },
-  "archive":  "Reference",
-  "checks":   "Scripts/gate-checks",
-  "tiers": [
-    { "id": "A", "what": "pure logic",      "run": "...", "cost": "~2s" },
-    { "id": "B", "what": "integration",     "run": "...", "requires": "...", "cost": "~30s" },
-    { "id": "C", "what": "the real artifact","run": "...", "proves": "...", "cost": "~4min" },
-    { "id": "D", "what": "the owner's eyes and ears", "human": true }
-  ]
-}
-```
+| Template | Becomes |
+|---|---|
+| `templates/process.json` | `process.json` — every field something reads |
+| `templates/spine.md` | the architecture document |
+| `templates/unit.md` | the first unit document, and the pattern for the rest |
+| `templates/walkthroughs.md` | the walkthrough list, if anything here needs a person to judge it |
+| `templates/reach.ps1` | `Scripts/reach.ps1` |
+
+If the repository has a corpus still to distil — documents whose content is going into unit documents
+over the coming weeks rather than today — write an adoption map, set `adoption` to its path, and give
+every source a row with its line count. Without the field, `AdoptionCounts` reads nothing and a
+stalled distillation stays invisible. If there is no such corpus, leave the field out entirely rather
+than pointing it at a file that does not exist.
 
 **Caps are set from each document's own size plus a small margin** — never inherited from another
 project. A cap only does its work while it pinches.

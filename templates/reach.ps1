@@ -7,6 +7,7 @@
       pwsh Scripts/reach.ps1 lane <verb>     seed | sync | status | remove
       pwsh Scripts/reach.ps1 land -Lane ...  land a lane onto the integration branch
       pwsh Scripts/reach.ps1 run <lane>      run a lane unattended
+      pwsh Scripts/reach.ps1 audit           what this repo is missing, against the installed version
       pwsh Scripts/reach.ps1 prove           the plugin's own negative controls, gate and lanes
 
     Anything after the verb is passed straight through:
@@ -35,6 +36,7 @@ $verbs = @{
     'lane'  = 'Lane.ps1'
     'land'  = 'Land.ps1'
     'run'   = 'Run-Lane.ps1'
+    'audit' = 'Audit.ps1'
     'prove' = 'Prove-Gate.ps1'
 }
 

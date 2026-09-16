@@ -182,7 +182,22 @@ iteration against the real lane with a trivial prompt in place of the command �
 self-test cannot see the loop, and in the original every guard passed on the first real invocation
 before it died three lines into the loop body.
 
-### 6. Verify — any time, in a terminal or from CI
+### 6. Check it is still complete
+
+```shell
+pwsh Scripts/reach.ps1 audit
+```
+
+Adoption happens once; reach keeps changing. A repository set up against an earlier version is missing
+whatever arrived since, and **nothing about that is visible** — the gate passes, the tiers run, and a
+mechanism that was never wired in simply never fires. The audit names every gap, why it matters, and
+the fix.
+
+Running `/reach:adopt` again on an already-adopted repository reads that list and fills what you agree
+to. It does not re-archive or re-classify anything: those steps replace a workflow, and yours has
+already been replaced.
+
+### 7. Verify — any time, in a terminal or from CI
 
 ```shell
 pwsh Scripts/reach.ps1 gate         # the gate alone      0 clean · 1 blocking · 2 refused to start
@@ -279,7 +294,7 @@ Your tiers are yours. The **contract** between them is not:
 
 ### `Prove-Gate.ps1` and `Prove-Lanes.ps1` — evidence none of it is decoration
 
-Twenty-two controls across two suites, run together:
+Twenty-eight controls across two suites, run together:
 
 ```shell
 pwsh Scripts/reach.ps1 prove
@@ -288,7 +303,7 @@ pwsh Scripts/reach.ps1 prove
 **Eleven gate controls.** Each breaks one thing, requires the gate to go red **for that specific
 check**, restores it, and requires green again.
 
-**Eleven lane controls.** Each breaks one assumption landing depends on and requires the refusal to
+**Seventeen lane, landing and audit controls.** Each breaks one assumption landing depends on and requires the refusal to
 come from the guard it names — the integration branch being checked out, a tree nobody verified, a
 lane on the wrong branch, a supervisor driving a lane from inside itself, a second holder of the lock.
 Landing advances a shared ref from objects while other work may be arriving, so it is the most
@@ -316,6 +331,7 @@ One file at your repository root. Everything reads it.
 | `tiers` | ordered, cheapest first: `{ id, what, run, requires, proves, cost, human }` |
 | `integration` | `{ branch, primary, mode, remote }` — where lanes land. `mode` is `objects` or `push` |
 | `lanes` | `[{ name, branch, worktree, command, warm, unattended }]` — `warm` takes `{ run }` or `{ copy }` |
+| `reach` | the plugin version this repository was set up against, so `audit` can measure the gap |
 
 ```json
 {
@@ -361,8 +377,8 @@ Two rules keep this from becoming the eight-thousand-line gate it replaced:
 Early, and honest about which parts have been through a fire.
 
 **Proven:** the gate and its five checks, the tier contract, the lane and landing guards, and the
-supervisor's decision about whether a run did anything — twenty-two controls, each watched to fail for
-its own named reason and pass again, by a script you can run.
+supervisor's decision about whether a run did anything — twenty-eight controls, each watched to fail
+for its own named reason and pass again, by a script you can run.
 
 **Written, not yet weathered:** the four commands. They are a distillation of a process that ran daily
 on one large project for months, but their generic form here has not yet been through an adoption end

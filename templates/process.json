@@ -1,0 +1,39 @@
+{
+  "reach": "0.5.0",
+  "project": "<name>",
+
+  "spine": { "path": "Docs/ARCHITECTURE.md", "cap": 0 },
+  "unit": { "noun": "system", "dir": "Docs/systems", "cap": 0 },
+  "evidence": { "noun": "scenario", "mark": "// scenario:", "search": ["Tests"] },
+  "human": { "doc": "Docs/process/WALKTHROUGHS.md", "noun": "walkthrough" },
+
+  "archive": "Reference",
+  "checks": "Scripts/gate-checks",
+  "caps": { "Docs/process/WALKTHROUGHS.md": 0 },
+
+  "integration": { "branch": "develop", "primary": "working", "mode": "objects", "remote": "origin" },
+  "lanes": [
+    {
+      "name": "build",
+      "branch": "build",
+      "worktree": "../<repo>-lanes/build",
+      "command": "/reach:build",
+      "warm": { "run": "" },
+      "unattended": false
+    },
+    {
+      "name": "milestone",
+      "branch": "milestone",
+      "worktree": "../<repo>-lanes/milestone",
+      "command": "/reach:milestone",
+      "unattended": false
+    }
+  ],
+
+  "tiers": [
+    { "id": "A", "what": "pure logic", "run": "", "cost": "~2s" },
+    { "id": "B", "what": "integration", "run": "", "requires": "", "cost": "~30s" },
+    { "id": "C", "what": "the real artifact", "run": "", "proves": "", "cost": "~4min" },
+    { "id": "D", "what": "the owner's eyes and ears", "human": true }
+  ]
+}

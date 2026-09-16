@@ -99,9 +99,23 @@ conversation reaches a stop condition. Moving on is the signal, whatever was sai
 If a claim still holds a question, land it with that part as an `**Open:**` line so it reads as a
 question rather than a decision — never leave it uncommitted for the next commit to sweep up.
 
-Follow whatever branching the project actually uses. The rule that does not vary: the gate is green
-on the tree as it will be committed, you read `git diff --cached` before committing, and the commit
-message goes through a file.
+This command works in the **primary checkout** — the one the owner has open, on its own branch. That
+is the whole of its territory: the lanes belong to the other commands, and a document rewritten here
+reaches them when it lands.
+
+```shell
+pwsh Scripts/reach.ps1 gate
+pwsh Scripts/reach.ps1 land -Branch <your branch> -Message <file>
+```
+
+`-Branch` rather than `-Lane`, because the primary checkout is not a lane. A land is a merge commit
+built from objects and swapped in against the integration SHA read once, so
+it happens while every lane is busy rather than waiting for one. If the swap is refused, a lane landed
+while you were writing: sync, re-check, land again. Never force it.
+
+The rules that do not vary: the gate is green on the tree as it will be committed, you read
+`git diff --cached` before committing, and the commit message goes through a file — a here-string
+breaks on quotes and turns words into pathspecs.
 
 ## Tooling
 

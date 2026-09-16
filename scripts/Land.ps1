@@ -22,7 +22,11 @@
     That is the mode for a repository you do not own.
 
 .PARAMETER Lane
-    The lane to land. Its branch is the tip.
+    The lane to land. Its branch is the tip, and it is fast-forwarded to the result afterwards.
+
+.PARAMETER Branch
+    Land a branch that is not a lane -- the primary checkout's own branch, which is how the ideate
+    command publishes a decision. Exactly one of -Lane or -Branch.
 
 .PARAMETER Message
     Path to a file holding the merge commit message. A message goes through a file because a
@@ -37,7 +41,8 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$Lane,
+    [string]$Lane,
+    [string]$Branch,
     [string]$Message,
     [string]$Verified,
     [string]$Root
@@ -55,13 +60,30 @@ $Process = Read-ProcessConfig $RepoRoot
 if (-not $Process) { Write-Host 'REFUSED: no process.json. Run /reach:adopt first.' -ForegroundColor Red; exit 2 }
 
 $integration = Get-Integration $Process
-$laneConfig = Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name $Lane
-if (-not $laneConfig) {
-    Write-Host ("REFUSED: no lane named '{0}' in process.json. Known: {1}" -f $Lane, ((Get-LaneNames $Process) -join ', ')) -ForegroundColor Red
+
+if (($Lane -and $Branch) -or (-not $Lane -and -not $Branch)) {
+    Write-Host 'REFUSED: name exactly one of -Lane or -Branch.' -ForegroundColor Red
     exit 2
 }
 
-$tipRef = $laneConfig.Branch
+$laneConfig = $null
+if ($Lane) {
+    $laneConfig = Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name $Lane
+    if (-not $laneConfig) {
+        Write-Host ("REFUSED: no lane named '{0}' in process.json. Known: {1}" -f $Lane, ((Get-LaneNames $Process) -join ', ')) -ForegroundColor Red
+        exit 2
+    }
+    $tipRef = $laneConfig.Branch
+} else {
+    $tipRef = $Branch
+}
+
+# Landing the integration branch into itself is not a merge, it is a loop. Worth naming, because
+# `-Branch develop` is an easy thing to type while thinking about publishing.
+if ($tipRef -eq $integration.Branch) {
+    Write-Host ("REFUSED: '{0}' is the integration branch. There is nothing to land it onto." -f $tipRef) -ForegroundColor Red
+    exit 2
+}
 
 # --------------------------------------------------------------------------------------- push mode
 
@@ -153,10 +175,14 @@ if ($swap.Code -ne 0) {
 Write-Host ("LANDED: {0} -> {1}  ({2})" -f $tipRef, $integration.Branch, $new.Substring(0, 12)) -ForegroundColor Green
 if ($arrived) { Write-Host '  (this land merged in work from the integration branch)' -ForegroundColor DarkGray }
 
-# The lane fast-forwards to what it landed, so its next run starts from the merged history rather
-# than re-merging its own work.
-$ff = Invoke-Git -Path $laneConfig.Worktree -Arguments @('merge', '--ff-only', $integration.Branch)
-if ($ff.Code -ne 0) {
-    Write-Host ("  note: could not fast-forward the lane to {0}; sync it before the next run." -f $integration.Branch) -ForegroundColor Yellow
+# Whatever was landed fast-forwards to the result, so its next piece of work starts from the merged
+# history rather than re-merging what it already landed. For a lane that is the lane's worktree; for
+# a plain branch it is wherever that branch is checked out, which is normally the primary.
+$where = if ($laneConfig) { $laneConfig.Worktree } else { Get-WorktreeFor -Path $RepoRoot -Branch $tipRef }
+if ($where) {
+    $ff = Invoke-Git -Path $where -Arguments @('merge', '--ff-only', $integration.Branch)
+    if ($ff.Code -ne 0) {
+        Write-Host ("  note: could not fast-forward '{0}' to {1}; sync it before the next piece of work." -f $tipRef, $integration.Branch) -ForegroundColor Yellow
+    }
 }
 exit 0

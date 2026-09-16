@@ -232,6 +232,66 @@ Test-Control 'push mode pushes the lane branch and merges nothing locally' {
     return $true
 }
 
+Test-Control 'land -Branch publishes a branch that is not a lane' {
+    $repo = New-Fixture
+    # The primary's own branch, which is how the ideate command publishes. It is not a lane, and
+    # -Lane would refuse it -- which is exactly the hole this closes.
+    [System.IO.File]::WriteAllText((Join-Path $repo 'note.md'), 'a decision')
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'a decision') | Out-Null
+
+    $land = Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($land.Code -ne 0) { return "land exited $($land.Code): $($land.Output)" }
+    $contains = Invoke-Git -Path $repo -Arguments @('merge-base', '--is-ancestor', 'working', 'develop')
+    if ($contains.Code -ne 0) { return 'develop does not contain it' }
+    return $true
+}
+
+Test-Control 'land refuses the integration branch as its own tip' {
+    $repo = New-Fixture
+    $land = Invoke-Script $Land @('-Branch', 'develop', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($land.Code -eq 0) { return 'it tried' }
+    if ($land.Output -notmatch 'integration branch') { return 'refused for another reason' }
+    return $true
+}
+
+Test-Control 'land refuses naming both a lane and a branch, or neither' {
+    $repo = New-Fixture
+    $both = Invoke-Script $Land @('-Lane', 'build', '-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($both.Code -eq 0) { return 'both was allowed' }
+    $neither = Invoke-Script $Land @('-Message', (New-Message $repo), '-Root', $repo)
+    if ($neither.Code -eq 0) { return 'neither was allowed' }
+    return $true
+}
+
+# ------------------------------------------------------------------------------------ the audit
+
+Test-Control 'audit reports an unseeded lane and a missing shim' {
+    $repo = New-Fixture
+    $audit = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $repo)
+    if ($audit.Code -eq 0) { return 'it reported complete on a bare fixture' }
+    if ($audit.Output -notmatch 'not seeded') { return 'it did not notice the unseeded lane' }
+    if ($audit.Output -notmatch 'reach.ps1') { return 'it did not notice the missing shim' }
+    return $true
+}
+
+Test-Control 'audit notices the integration branch being checked out' {
+    $repo = New-Fixture
+    Invoke-Git -Path $repo -Arguments @('checkout', '-q', 'develop') | Out-Null
+    $audit = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $repo)
+    if ($audit.Output -notmatch 'checked out') { return 'it did not notice' }
+    return $true
+}
+
+Test-Control 'audit says not adopted when there is no process.json' {
+    $repo = New-Fixture
+    Remove-Item -LiteralPath (Join-Path $repo 'process.json') -Force
+    $audit = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $repo)
+    if ($audit.Code -eq 0) { return 'it reported complete' }
+    if ($audit.Output -notmatch 'NOT ADOPTED') { return 'it said something else' }
+    return $true
+}
+
 # ------------------------------------------------------------------------------- the supervisor
 
 Test-Control 'the supervisor refuses a lane on the wrong branch' {

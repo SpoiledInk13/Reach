@@ -39,6 +39,22 @@ Also the documents of the units the entry needs, and the spine. They say what ex
 this command decides only how it presents, directed by whatever mockups or direction the owner has
 given.
 
+## Where it works
+
+In its own lane if the project declares one — its own worktree, on its own branch, with its own build
+cache — never in the primary checkout, and never in the build command's lane. The artifact you hand
+over is produced there, from exactly the tree that lands.
+
+```shell
+pwsh Scripts/reach.ps1 lane sync milestone
+pwsh Scripts/reach.ps1 all
+pwsh Scripts/reach.ps1 land -Lane milestone -Message <file> -Verified <sha>
+```
+
+One agent per lane. Two in one share its index and its cache, which is the collision lanes exist to
+remove — and it is why this command does not work in the same units the build command is working in,
+even when the walkthrough needs them.
+
 ## What it decides, and what it never does
 
 **It builds presentation, and sets the values that tune it.** Styles, layout, effects, lighting, token
