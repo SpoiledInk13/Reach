@@ -50,25 +50,74 @@ Honest answer, because the fit is uneven:
 
 It makes no assumptions about your language, your test framework, or your branching model.
 
-## Install
+## How to use it
+
+**Requirements:** git, and PowerShell — Windows PowerShell 5.1 or `pwsh` on any platform. The scripts
+are written to the 5.1 subset on purpose, so the same commands run locally and in CI.
+
+### 1. Install the plugin — once, in a terminal
 
 ```shell
 claude plugin marketplace add SpoiledInk13/Reach
 claude plugin install reach@reach
 ```
 
-Then `/reach:adopt` is available in every project. To work on the plugin itself instead, run
-`claude --plugin-dir ./reach` — that reads the directory live, and `/reload-plugins` applies edits
-without reinstalling.
+The first command registers the catalogue and installs nothing; the second installs from it. The
+default scope is **user**, so `reach` is then available in every project you open. Use
+`--scope project` to commit it to one repository's `.claude/settings.json` for collaborators, or
+`--scope local` for yourself in one repository only.
 
-**Requirements:** git, and PowerShell — Windows PowerShell 5.1 or `pwsh` on any platform. The scripts
-are written to the 5.1 subset on purpose, so the same gate runs locally and in CI.
+```shell
+claude plugin list                  # what is installed, and whether it is enabled
+claude plugin details reach         # its components and what they cost in context
+claude plugin update reach          # after a new release
+claude plugin uninstall reach@reach
+```
 
-## Adopting a repository
+### 2. Adopt a repository — once per project, inside Claude Code
 
 ```
 /reach:adopt
 ```
+
+Plugin skills are namespaced, so it is always `/reach:adopt` and never `/adopt` — which means it can
+never shadow a command your project already has. If the skill does not appear, run `/reload-plugins`.
+
+This is the conversation described below. It ends with `process.json`, a `Scripts/reach.ps1` you
+commit, and a gate you have watched fail.
+
+### 3. Verify — every day, in a terminal or from CI
+
+```shell
+pwsh Scripts/reach.ps1 gate         # the gate alone      0 clean · 1 blocking · 2 refused to start
+pwsh Scripts/reach.ps1 all          # gate + every tier   0 pass · 1 fail · 3 something was skipped
+pwsh Scripts/reach.ps1 prove        # the plugin's own negative controls
+```
+
+Anything after the verb passes straight through:
+
+```shell
+pwsh Scripts/reach.ps1 gate -List               # name every check and where it came from
+pwsh Scripts/reach.ps1 gate -Check DocumentCaps # run one
+pwsh Scripts/reach.ps1 all -Tier A              # run one tier
+```
+
+`Scripts/reach.ps1` is written into your repository by `/reach:adopt`, and it exists because the
+plugin's scripts live at a path carrying its version number — that path moves every time the plugin
+updates, so nothing may hard-code it. The file resolves the installed plugin at run time. Set
+`REACH_ROOT` to a checkout of this repository to run a change before publishing it.
+
+### Working on the plugin itself
+
+```shell
+claude --plugin-dir ./Reach
+```
+
+That reads the directory live with no install, and `/reload-plugins` applies edits mid-session.
+Install is for *using* reach; `--plugin-dir` is for *changing* it — an installed copy is a snapshot
+pinned to a version and will not see your edits.
+
+## What `/reach:adopt` actually does
 
 A repository adopts this because the setup it has is not working. So adoption **replaces** what is
 there rather than adding beside it — two workflows in one repository means the failed one is still
@@ -114,9 +163,9 @@ your own. Adding a check never edits the driver.
 | `AdoptionCounts` | a recorded line count stops matching its file, so a stalled adoption stays visible |
 
 ```shell
-pwsh scripts/Verify-Gate.ps1              # 0 = clean, 1 = blocking, 2 = refused to start
-pwsh scripts/Verify-Gate.ps1 -List        # names each check and where it came from
-pwsh scripts/Verify-Gate.ps1 -Check DocumentCaps
+pwsh Scripts/reach.ps1 gate
+pwsh Scripts/reach.ps1 gate -List
+pwsh Scripts/reach.ps1 gate -Check DocumentCaps
 ```
 
 ### `Verify-All.ps1` — the gate plus every tier, one verdict
@@ -138,7 +187,7 @@ Eleven controls. Each breaks one thing, requires the gate to go red **for that s
 restores it, and requires green again.
 
 ```shell
-pwsh scripts/Prove-Gate.ps1
+pwsh Scripts/reach.ps1 prove
 ```
 
 All three conditions matter. Red proves the check can fire; *red from the named check* stops a check

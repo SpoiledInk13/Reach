@@ -105,6 +105,12 @@ Five parameters, and resist a sixth:
 **Caps are set from each document's own size plus a small margin** — never inherited from another
 project. A cap only does its work while it pinches.
 
+Then copy `templates/reach.ps1` from the plugin into the repository as `Scripts/reach.ps1` and commit
+it. The plugin's scripts live at a path carrying its version number, so it moves on every update and
+nothing may hard-code it; that file resolves the installed plugin at run time and is what the owner
+and CI both invoke. Without it, every command in the README names a path that will be wrong by the
+next release.
+
 **The tiers are the project's, the contract is not.** Cheapest first. Ask what the expensive tier
 actually is — the thing that compiles, bundles or ships for real — because a project whose tiers stop
 at unit tests has a whole class of defect no tier can see. Ask what cannot always run, and give it a
@@ -118,12 +124,12 @@ to it, nothing that runs may claim otherwise.
 
 Three things, in order, and report the actual output of each:
 
-1. `scripts/Prove-Gate.ps1` — the reach checks go red on purpose and green again.
+1. `Scripts/reach.ps1 prove` — the reach checks go red on purpose and green again.
 2. **A negative control on this repository.** Break one real claim — flip a unit to `built` with
-   nothing proving it — watch `Verify-Gate.ps1` go red, restore, watch it go green. A gate that has
-   never been observed failing on *this* repository is decoration here regardless of what it does
+   nothing proving it — watch `Scripts/reach.ps1 gate` go red, restore, watch it go green. A gate that
+   has never been observed failing on *this* repository is decoration here regardless of what it does
    elsewhere.
-3. `scripts/Verify-All.ps1` — every tier runs. A tier reported `SKIPPED` is not a pass; say so.
+3. `Scripts/reach.ps1 all` — every tier runs. A tier reported `SKIPPED` is not a pass; say so.
 
 ## 7. Finish the replacement
 

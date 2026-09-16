@@ -122,12 +122,16 @@ function Add-Result {
 Write-Host ("Verify-All -- {0}" -f $RepoRoot) -ForegroundColor Cyan
 
 if (-not $SkipGate -and -not $Tier) {
+    # The gate prints its own failures, and they are left visible on purpose: sending someone away to
+    # re-run a second command to find out what broke costs more than the few lines it saves. Piping
+    # this to Out-Null would not have suppressed them anyway -- the gate writes with Write-Host, which
+    # goes to the host rather than down the pipeline.
     $gate = Join-Path $ScriptRoot 'Verify-Gate.ps1'
-    & $gate -Root $RepoRoot | Out-Null
+    & $gate -Root $RepoRoot
     $code = $LASTEXITCODE
     if ($code -eq 0) { Add-Result 'gate' 'PASS' }
     elseif ($code -eq 2) { Add-Result 'gate' 'SKIPPED' 'refused to start' }
-    else { Add-Result 'gate' 'FAIL' 'run Verify-Gate.ps1 for the failures' }
+    else { Add-Result 'gate' 'FAIL' 'the failures are listed above' }
 }
 
 foreach ($t in $Tiers) {
