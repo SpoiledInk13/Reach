@@ -1,0 +1,145 @@
+---
+description: Replace a repository's existing agent workflow with this one, by distilling what is already there rather than adding beside it. Use when a project is adopting reach for the first time, or when its CLAUDE.md and commands have stopped being read.
+---
+
+# Adopt
+
+A repository adopts this process because the one it has is not working. So this **replaces** what is
+there. It does not add a section beside it, and it does not leave the old instructions in place to be
+read alongside the new ones — two workflows in one repository means the failed one is still live, and
+the reason the first one failed is usually that nothing was ever allowed to be deleted.
+
+Replacement is only safe because nothing is lost. Every claim in the existing files is either carried
+to a named destination or archived whole, and the archive is read-only and gate-enforced. **You never
+delete a lesson. You move it, or you keep it where it can be found.**
+
+This is a conversation, not a scaffolder. There is a classification step the owner signs off, because
+the judgement is made dozens of times and a claim removed by mistake looks exactly like one that was
+never there. Do not run it unattended, and do not offer to.
+
+---
+
+## 1. Read what is there, and measure it
+
+Before proposing anything:
+
+- `CLAUDE.md`, `AGENTS.md`, and any equivalent at the repository root
+- `.claude/` — commands, skills, agents, settings, hooks
+- any `docs/` or `Documentation/` tree, and the README
+- how the project is actually built and tested: scripts, task runners, CI workflows
+- the branches that exist, whether pull requests are used, and how many people commit
+
+Report line counts, not impressions. A repository is routinely wrong about its own state, and every
+later step depends on this being measured rather than remembered.
+
+## 2. Decide how much of the process this repository can take
+
+Two layers, and the split is **team size, not language**.
+
+**The universal layer** — every repository gets this. The tier contract and a single verdict, the
+gate with its checks, the traps, and the memory conventions. It touches no branching and imposes no
+document structure.
+
+**The governance layer** — capped documents, the unit roster with `built`/`unbuilt`, evidence marks,
+the `Open:` inbox, and the split of work by who verifies it. This assumes **one owner who answers
+every question**. On a repository with several committers, the sole-writer rule is a bottleneck and
+the `Open:` inbox is a ticket queue nobody owns; pull requests and review already do that job, and
+they do it better because they have humans attached.
+
+On a repository you do not own, "replace" means replace **how the agent is instructed and verified**.
+The team's own workflow — pull requests, review, CI — is not yours to replace, and the universal layer
+is the whole of what you propose. Say this out loud rather than quietly scoping down.
+
+## 3. Tag, then archive
+
+Before a single file changes:
+
+    git tag -a pre-reach-<yyyymmdd> -m "the working tree before adopting reach"
+
+Then `git mv` every file being replaced into the archive directory — `Reference/` by default — whole
+and unedited. Sources are **archived, never deleted**. The archive is what makes step 4 safe, and
+`ArchiveImmutable` keeps it honest afterwards.
+
+## 4. Classify every claim, and show the table before writing
+
+Go through the archived files claim by claim. Each one gets a destination or an explicit decision to
+drop it, and you present the whole table before writing anything:
+
+| What it is | Where it goes |
+|---|---|
+| A platform or engine gotcha — *"this API silently no-ops in editor mode"* | the spine, or the project's trap list |
+| A rule about how the software behaves — *"weapons are never auto-equipped"* | a **unit document, as a claim** — which immediately shows whether anything proves it |
+| How to build, test, run, deploy | the `tiers` array in `process.json` |
+| A coding standard the model would follow from the surrounding code anyway | dropped — keep only what is counterintuitive |
+| An existing command | kept if it earns its place, dropped if the new structure covers it |
+| Anything you cannot place | **stays, flagged.** Never dropped because it did not fit |
+
+The last row is the one that matters. A claim you cannot classify is a claim you do not understand
+well enough to delete.
+
+Converting behaviour rules into claims is the most valuable thing adoption does, and it is also the
+uncomfortable part: a document full of confident prose becomes a roster where most rows have nothing
+proving them. That is not the adoption going wrong. That was already true.
+
+## 5. Write `process.json`
+
+Five parameters, and resist a sixth:
+
+```json
+{
+  "project": "the name",
+  "spine":    { "path": "Docs/ARCHITECTURE.md", "cap": 0 },
+  "unit":     { "noun": "system", "dir": "Docs/systems", "cap": 0 },
+  "evidence": { "noun": "scenario", "mark": "// scenario:", "search": ["Tests"] },
+  "archive":  "Reference",
+  "checks":   "Scripts/gate-checks",
+  "tiers": [
+    { "id": "A", "what": "pure logic",      "run": "...", "cost": "~2s" },
+    { "id": "B", "what": "integration",     "run": "...", "requires": "...", "cost": "~30s" },
+    { "id": "C", "what": "the real artifact","run": "...", "proves": "...", "cost": "~4min" },
+    { "id": "D", "what": "the owner's eyes and ears", "human": true }
+  ]
+}
+```
+
+**Caps are set from each document's own size plus a small margin** — never inherited from another
+project. A cap only does its work while it pinches.
+
+**The tiers are the project's, the contract is not.** Cheapest first. Ask what the expensive tier
+actually is — the thing that compiles, bundles or ships for real — because a project whose tiers stop
+at unit tests has a whole class of defect no tier can see. Ask what cannot always run, and give it a
+`requires`. Ask whether any tool here exits 0 having done nothing, and if so give that tier a `proves`
+pattern; that failure is common and it reads as green.
+
+A tier marked `human` is never run. If an outcome can only be verified by looking at it or listening
+to it, nothing that runs may claim otherwise.
+
+## 6. Prove it, or it did not happen
+
+Three things, in order, and report the actual output of each:
+
+1. `scripts/Prove-Gate.ps1` — the reach checks go red on purpose and green again.
+2. **A negative control on this repository.** Break one real claim — flip a unit to `built` with
+   nothing proving it — watch `Verify-Gate.ps1` go red, restore, watch it go green. A gate that has
+   never been observed failing on *this* repository is decoration here regardless of what it does
+   elsewhere.
+3. `scripts/Verify-All.ps1` — every tier runs. A tier reported `SKIPPED` is not a pass; say so.
+
+## 7. Finish the replacement
+
+The old files are in the archive and their content is in its new homes, so remove them from where
+they were being read. Leaving a stale `CLAUDE.md` section beside the new structure is the exact
+failure this whole procedure exists to avoid.
+
+Then say plainly what was dropped and why. The owner signed off on a table in step 4; the closing
+report is what lets them check that the table is what actually happened.
+
+---
+
+## What this must never do
+
+- Run without the step 4 sign-off.
+- Delete anything that is not already in the archive.
+- Invent a tier. If nobody knows how the project is verified, that is the finding — report it.
+- Report a pass when a tier was skipped.
+- Leave two workflows in the repository.

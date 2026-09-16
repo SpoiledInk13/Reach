@@ -1,0 +1,14 @@
+{
+  "name": "reach",
+  "owner": {
+    "name": "Amelia Bleeker"
+  },
+  "plugins": [
+    {
+      "name": "reach",
+      "source": "./",
+      "description": "A process for building with coding agents: work split by who verifies it, documents capped so they get deleted from, and guards that have all been watched to fail."
+    }
+  ],
+  "description": "Amelia Bleeker's process tooling for building software with coding agents."
+}
