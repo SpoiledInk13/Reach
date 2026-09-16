@@ -53,7 +53,7 @@ It makes no assumptions about your language, your test framework, or your branch
 ## Install
 
 ```shell
-claude plugin marketplace add SpoiledInk13/reach
+claude plugin marketplace add SpoiledInk13/Reach
 claude plugin install reach@reach
 ```
 
