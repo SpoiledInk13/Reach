@@ -166,6 +166,7 @@ A lane is a persistent **worktree** on its own branch, with its own build cache.
 pwsh Scripts/reach.ps1 lane seed build     # create the worktree and branch, and warm it
 pwsh Scripts/reach.ps1 lane status         # every lane: branch, lock, dirt, how far ahead or behind
 pwsh Scripts/reach.ps1 lane sync build     # bring the integration branch in
+pwsh Scripts/reach.ps1 lane sync -Primary  # and into your own checkout, which nothing else syncs
 pwsh Scripts/reach.ps1 land -Lane build -Message msg.txt -Verified <sha>
 pwsh Scripts/reach.ps1 publish              # push those refs again, after one was refused
 ```
@@ -181,6 +182,13 @@ That requires one thing of the repository, and `/reach:adopt` sets it up:
   busy — this is the difference between landing and queueing;
 - your checkout sits on **its own branch**;
 - each lane is a **worktree** on its own long-lived branch.
+
+Landing by ref has one cost and it falls on you: **your own checkout goes stale silently.** Nothing in
+a working tree changes when a ref it does not hold moves, so after a lane lands you are reading the
+documents as they were before it — an inbox reads empty, a unit's state is whatever it used to be, and
+a decision gets made from a document that is no longer true. `lane sync -Primary` is the fix.
+`PrimaryIsStale` is the backstop: the gate refuses while your checkout is behind, so such a decision
+cannot land even when nobody remembered the first step.
 
 A land is always a merge commit built from objects and swapped in with a **compare-and-swap** against
 the integration SHA read once. Read it twice — once to merge, once to swap — and the swap can succeed
@@ -343,6 +351,7 @@ your own. Adding a check never edits the driver.
 | `ClaimsAreProven` | a unit is marked built with claims nothing proves; evidence names a claim no document makes; an `*(owed)*` mark sits where it should not; a built unit holds a question it does not owe |
 | `DocLinks` | a maintained document links to something that no longer exists |
 | `AdoptionCounts` | a recorded line count stops matching its file, so a stalled adoption stays visible |
+| `PrimaryIsStale` | the primary checkout is behind the integration branch, so its documents are not the ones the next reader sees |
 
 ```shell
 pwsh Scripts/reach.ps1 gate

@@ -56,14 +56,28 @@ Be a sharp collaborator, not a cheerleader.
 
 ## The inbox
 
+**Sync before you read anything.** The integration branch advances by ref when a lane lands, so this
+checkout falls behind by every land since you last looked — and no file in it changes to say so. Read
+a stale tree and the inbox is empty for the wrong reason, a unit's state is whatever it used to be,
+and a decision gets made from a document that is no longer true.
+
+```shell
+pwsh Scripts/reach.ps1 lane sync -Primary
+```
+
+The gate refuses while this checkout is behind, so a decision made from stale text cannot land. But
+that refusal comes at the end, after the conversation has already happened on the wrong text. This
+step is the one that saves the conversation; the gate only saves the branch.
+
 Other commands hand back what they cannot do as an `**Open:**` line under the thing it blocks. So:
 
 ```shell
-grep -rn '^[[:space:]]*\*\*Open:\*\*' <unit.dir> <the human document>
+grep -rn '\*\*Open:\*\*' <unit.dir> <the human document>
 ```
 
-The leading whitespace matters — a claim is usually a bullet and its question is indented under it,
-and a grep anchored hard at the line start reads an indented one as absent.
+Unanchored, because the line is a **bullet**: a question sits under the claim it blocks as
+`  - **Open:** …`, so any pattern expecting whitespace and then `**` reads every one of them as
+absent — which looks exactly like an empty inbox.
 
 **Only this command answers one.** Answer it by **rewriting the claim**, and delete the `Open:` line
 in the same commit. An answer written beneath the question is an append, and the next reader sees a

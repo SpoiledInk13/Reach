@@ -380,6 +380,62 @@ Test-Control 'a branch carrying no part of the process is left alone, until publ
     return $true
 }
 
+# ----------------------------------------------------------------------------- the primary tree
+
+function Update-Integration {
+    # A land, in miniature: the integration ref moves from objects while the primary keeps its own
+    # branch checked out, so no file in that working tree changes to say the documents moved.
+    param([string]$Repo, [string]$Branch = 'develop')
+    $head = Get-GitValue -Path $Repo -Arguments @('rev-parse', $Branch)
+    $tree = Get-GitValue -Path $Repo -Arguments @('rev-parse', ($Branch + '^{tree}'))
+    $landed = Get-GitValue -Path $Repo -Arguments @('commit-tree', $tree, '-p', $head, '-m', 'a lane landed')
+    Invoke-Git -Path $Repo -Arguments @('branch', '-f', $Branch, $landed) | Out-Null
+}
+
+Test-Control 'sync -Primary brings the primary checkout up to the integration branch' {
+    $repo = New-Fixture
+    Update-Integration $repo
+    $behind = Invoke-Git -Path $repo -Arguments @('merge-base', '--is-ancestor', 'develop', 'HEAD')
+    if ($behind.Code -eq 0) { return 'the fixture was not stale to begin with' }
+
+    $sync = Invoke-Script $Lane @('sync', '-Primary', '-Root', $repo)
+    if ($sync.Code -ne 0) { return "sync exited $($sync.Code): $($sync.Output)" }
+    $contains = Invoke-Git -Path $repo -Arguments @('merge-base', '--is-ancestor', 'develop', 'HEAD')
+    if ($contains.Code -ne 0) { return 'the primary still does not contain the integration branch' }
+    return $true
+}
+
+Test-Control 'sync -Primary refuses to write the integration delta over uncommitted work' {
+    $repo = New-Fixture
+    Update-Integration $repo
+    [System.IO.File]::WriteAllText((Join-Path $repo 'dirty.txt'), 'half a decision')
+
+    $sync = Invoke-Script $Lane @('sync', '-Primary', '-Root', $repo)
+    if ($sync.Code -eq 0) { return 'it synced over them' }
+    if ($sync.Output -notmatch 'uncommitted') { return 'refused for another reason' }
+    return $true
+}
+
+Test-Control 'status gives the primary a row, and calls it stale' {
+    $repo = New-Fixture
+    Update-Integration $repo
+    $status = Invoke-Script $Lane @('status', '-Root', $repo)
+    if ($status.Code -ne 0) { return "status exited $($status.Code): $($status.Output)" }
+    # Without a row of its own the primary's drift is invisible in the one command an agent runs to
+    # see where everything stands, which is how it stayed invisible.
+    if ($status.Output -notmatch 'primary') { return 'no primary row' }
+    if ($status.Output -notmatch 'STALE') { return 'it did not say the primary was stale' }
+    return $true
+}
+
+Test-Control 'sync refuses -Primary and a lane name together' {
+    $repo = New-Fixture
+    $sync = Invoke-Script $Lane @('sync', 'build', '-Primary', '-Root', $repo)
+    if ($sync.Code -eq 0) { return 'it picked one silently' }
+    if ($sync.Output -notmatch 'two different things') { return 'refused for another reason' }
+    return $true
+}
+
 Test-Control 'land -Branch publishes a branch that is not a lane' {
     $repo = New-Fixture
     # The primary's own branch, which is how the ideate command publishes. It is not a lane, and

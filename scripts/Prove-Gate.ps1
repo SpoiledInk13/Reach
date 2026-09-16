@@ -149,6 +149,19 @@ $controls = @(
     @{ Check = 'DocLinks'; What = 'a maintained document links to nothing'
        Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Docs/ARCHITECTURE.md') -Value 'See [the plan](../Docs/plan.md).' } }
 
+    @{ Check = 'PrimaryIsStale'; What = 'a lane lands while the primary checkout is not looking'
+       Break = { Push-Location -LiteralPath $Fixture
+                 try {
+                     # Exactly how it happens for real: the integration ref is advanced from objects
+                     # while the primary has its own branch checked out. No file here changes, and
+                     # nothing in this tree says the documents moved -- which is the whole problem.
+                     & git checkout -q -b working 2>&1 | Out-Null
+                     $head = ([string](& git rev-parse HEAD)).Trim()
+                     $tree = ([string](& git rev-parse 'HEAD^{tree}')).Trim()
+                     $landed = ([string](& git commit-tree $tree -p $head -m 'a lane landed')).Trim()
+                     & git branch -f develop $landed 2>&1 | Out-Null
+                 } finally { Pop-Location } } }
+
     @{ Check = 'AdoptionCounts'; What = 'a recorded line count stops matching its file'
        Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Reference/old.md') -Value 'a line'
                  Push-Location -LiteralPath $Fixture; try { & git add -A 2>&1 | Out-Null; & git commit -qm 'archive grows' 2>&1 | Out-Null } finally { Pop-Location } } }

@@ -20,8 +20,13 @@
 
       Lane.ps1 seed build          create the worktree and branch, and warm it
       Lane.ps1 sync build          bring the integration branch into the lane
-      Lane.ps1 status              every lane: branch, lock, dirt, and how far ahead or behind
+      Lane.ps1 sync -Primary       bring it into the primary checkout, which nothing else syncs
+      Lane.ps1 status              the primary and every lane: branch, lock, dirt, ahead or behind
       Lane.ps1 remove build        remove the worktree; the branch stays
+
+    `sync -Primary` is here rather than in a verb of its own because it is the same operation on the
+    one working tree that is not a lane -- and the tree whose staleness is invisible, since no land
+    touches it and nothing in it changes when the ref it does not hold moves.
 
 .PARAMETER Root
     The repository. Defaults to the git root of the current directory.
@@ -31,7 +36,8 @@ param(
     [Parameter(Mandatory = $true, Position = 0)][ValidateSet('seed', 'sync', 'status', 'remove')][string]$Verb,
     [Parameter(Position = 1)][string]$Lane,
     [string]$Root,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$Primary
 )
 
 Set-StrictMode -Version Latest
@@ -174,6 +180,51 @@ function Invoke-Sync {
     Write-Host ("SYNCED: '{0}' now contains '{1}'. Re-run the tiers -- this is not the tree you tested." -f $lane.Branch, $integration.Branch) -ForegroundColor Green
 }
 
+function Invoke-SyncPrimary {
+    <#
+        The primary checkout is the one working tree nothing else syncs. Lanes land onto the
+        integration branch by ref, so the branch the owner has open falls behind by every land, and
+        nothing in that tree changes to say so. Everything read there -- an inbox, a unit's state, a
+        claim about to be rewritten -- is then from before those lands.
+
+        Same shape as a lane's sync, and for the same reason: fast-forward when there is nothing
+        unlanded on this side, a real merge when there is, and never over uncommitted work.
+    #>
+    $where = Get-WorktreeFor -Path $RepoRoot -Branch $integration.Primary
+    if (-not $where) {
+        Write-Host ("REFUSED: '{0}' is the primary branch in process.json and no working tree has it checked out." -f $integration.Primary) -ForegroundColor Red
+        exit 2
+    }
+
+    $dirty = Invoke-Git -Path $where -Arguments @('status', '--porcelain')
+    if ($dirty.Code -eq 0 -and $dirty.Lines.Count -gt 0 -and -not $Force) {
+        Write-Host ("REFUSED: '{0}' has uncommitted changes. A sync writes the integration branch's whole delta over them." -f $integration.Primary) -ForegroundColor Red
+        foreach ($line in $dirty.Lines) { Write-Host "  $line" -ForegroundColor DarkGray }
+        exit 2
+    }
+
+    $behind = Invoke-Git -Path $where -Arguments @('merge-base', '--is-ancestor', $integration.Branch, 'HEAD')
+    if ($behind.Code -eq 0) {
+        Write-Host ("Up to date: '{0}' already contains '{1}'." -f $integration.Primary, $integration.Branch) -ForegroundColor Green
+        exit 0
+    }
+
+    $ahead = Invoke-Git -Path $where -Arguments @('merge-base', '--is-ancestor', 'HEAD', $integration.Branch)
+    $arguments = if ($ahead.Code -eq 0) {
+        @('merge', '--ff-only', $integration.Branch)
+    } else {
+        @('merge', '--no-ff', '--no-edit', $integration.Branch)
+    }
+
+    $result = Invoke-Git -Path $where -Arguments $arguments
+    foreach ($line in $result.Lines) { Write-Host "  $line" -ForegroundColor DarkGray }
+    if ($result.Code -ne 0) {
+        Write-Host 'CONFLICT: resolve it here, in the primary checkout, before reading or writing anything else.' -ForegroundColor Red
+        exit 1
+    }
+    Write-Host ("SYNCED: '{0}' now contains '{1}'. Re-read before deciding -- the documents just changed under you." -f $integration.Primary, $integration.Branch) -ForegroundColor Green
+}
+
 # ---------------------------------------------------------------------------------------- status
 
 function Invoke-Status {
@@ -182,6 +233,29 @@ function Invoke-Status {
     $checkedOut = Get-WorktreeFor -Path $RepoRoot -Branch $integration.Branch
     if ($checkedOut -and $integration.Mode -eq 'objects') {
         Write-Host ("  BROKEN: '{0}' is checked out at {1}. Landing by ref is unsafe while it is." -f $integration.Branch, $checkedOut) -ForegroundColor Red
+    }
+
+    # The primary gets a row of its own. It is not a lane, which is exactly why it was missing here --
+    # and it is the tree whose staleness is invisible, because no land touches it and nothing in it
+    # changes when the ref it does not hold moves.
+    $primaryAt = Get-WorktreeFor -Path $RepoRoot -Branch $integration.Primary
+    if (-not $primaryAt) {
+        Write-Host ("  {0,-12} {1,-10} not checked out anywhere" -f 'primary', $integration.Primary) -ForegroundColor DarkGray
+    } else {
+        $notes = New-Object System.Collections.Generic.List[string]
+        $dirty = Invoke-Git -Path $primaryAt -Arguments @('status', '--porcelain')
+        if ($dirty.Lines.Count -gt 0) { $notes.Add("$($dirty.Lines.Count) uncommitted") | Out-Null }
+        $counts = Get-GitValue -Path $primaryAt -Arguments @('rev-list', '--left-right', '--count', "$($integration.Branch)...HEAD")
+        $stale = $false
+        if ($counts) {
+            $parts = $counts -split '\s+'
+            if ($parts.Count -ge 2) {
+                if ([int]$parts[0] -gt 0) { $notes.Add("$($parts[0]) behind -- STALE, sync before reading") | Out-Null; $stale = $true }
+                if ([int]$parts[1] -gt 0) { $notes.Add("$($parts[1]) to land") | Out-Null }
+            }
+        }
+        $colour = if ($stale) { 'Red' } elseif ($notes.Count -gt 0) { 'Yellow' } else { 'Green' }
+        Write-Host ("  {0,-12} {1,-10} {2}" -f 'primary', $integration.Primary, ($notes -join ', ')) -ForegroundColor $colour
     }
 
     if ($names.Count -eq 0) { Write-Host '  no lanes declared in process.json' -ForegroundColor DarkGray; return }
@@ -229,7 +303,13 @@ function Invoke-Remove {
 
 switch ($Verb) {
     'seed'   { Invoke-Seed }
-    'sync'   { Invoke-Sync }
+    'sync'   {
+        if ($Primary -and $Lane) {
+            Write-Host "REFUSED: -Primary syncs the primary checkout; naming a lane as well says two different things." -ForegroundColor Red
+            exit 2
+        }
+        if ($Primary) { Invoke-SyncPrimary } else { Invoke-Sync }
+    }
     'status' { Invoke-Status }
     'remove' { Invoke-Remove }
 }
