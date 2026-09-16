@@ -38,6 +38,37 @@ Everything else here is an implementation of these.
 4. **Every guard has an observed failure path.** Break it on purpose, watch it go red, restore. A
    check whose failure has never been seen is decoration.
 
+### Rule 2 also applies to the agent's own memory
+
+Worth stating separately, because this is where the defect grows back quietly. An agent that keeps
+notes across sessions builds the same shape of artifact the rules above are about: an index loaded
+every session, with a hard size limit, that every session may add to and nothing ever removes from.
+
+Compacting such an index buys less each time. Squeezing out prose raises the share that is
+irreducible *address* — the labels and filenames you need in order to find anything — so each pass
+leaves less to compress and the next one falls due sooner. One index ran through four compactions in
+six days and came out two-thirds address, with about thirty entries of headroom left. Compaction was
+never the mechanism; it was buying time against the wrong problem.
+
+The fix is the same one caps force on documents, and it costs nothing here because **the index is a
+working set, not the archive** — every note stays on disk and stays greppable, and the index lists
+only what you would get wrong without it:
+
+> **A note graduates out of the index once its lesson is stated in a document or enforced by a
+> guard.** The document binds every session; the index binds only the sessions that load it. So
+> writing the lesson where it binds is the better fix, and evicting the note then loses nothing.
+
+Two things make this safe to do in bulk. Check by concept in the *document's* vocabulary, never the
+note's phrasing — searching for the words the note happens to use reports absences that are not
+there, and that is the failure mode, because it reads as confirmation. And leave in place anything
+you cannot actually locate; the cost of keeping a duplicate is bytes, the cost of evicting something
+undocumented is the lesson. Applied once to an index of 224 entries, 24 had already graduated into
+documents and were being carried twice.
+
+Reach does not enforce this — it is a property of your agent's memory, not of your repository — but
+the same reasoning that caps your documents is what keeps that index from becoming the next
+append-only artifact.
+
 ## Is this for you?
 
 Honest answer, because the fit is uneven:
