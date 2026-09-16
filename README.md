@@ -81,12 +81,52 @@ claude plugin uninstall reach@reach
 ```
 
 Plugin skills are namespaced, so it is always `/reach:adopt` and never `/adopt` — which means it can
-never shadow a command your project already has. If the skill does not appear, run `/reload-plugins`.
+never shadow a command your project already has. If a skill does not appear, run `/reload-plugins`.
 
 This is the conversation described below. It ends with `process.json`, a `Scripts/reach.ps1` you
 commit, and a gate you have watched fail.
 
-### 3. Verify — every day, in a terminal or from CI
+### 3. Work — the loop, inside Claude Code
+
+Three commands, split by **who verifies the work**. That split is the whole design: it is why nothing
+falls between them, and why none of them can quietly do another's job.
+
+```
+/reach:ideate        decide, and write it down
+/reach:build         implement it, and prove it
+/reach:milestone     make it look and sound right, and hand it over
+```
+
+| | Owns | Reads | Verified by |
+|---|---|---|---|
+| `/reach:ideate` | the documents, the architecture, the tooling | everything | **your judgement**, in conversation |
+| `/reach:build` | everything that can be asserted | the unit documents | **the machine** — every tier |
+| `/reach:milestone` | how it looks, sounds and feels | the walkthroughs | **your eyes and ears**, on a real build |
+
+A normal week: **`/reach:ideate`** to decide what a piece of the system *is* and write the contract;
+**`/reach:build`** to implement it until nothing is left that it can build without an answer;
+**`/reach:milestone`** when there is something a person has to look at. Then back to ideate with
+whatever the other two could not answer.
+
+**Only `/reach:ideate` ever answers a question.** When build or milestone hits something it cannot do —
+a claim contradicted by the code, a choice no document makes — it does not guess, and it does not ask
+you mid-run. It writes one line into the document that blocks it:
+
+```markdown
+- Rooms reheat from the corridor they open onto.
+  **Open:** `Thermal.cs:88` mixes across every shared edge, not just open ones. Which is the contract?
+```
+
+That line is the entire coordination protocol. There is no queue, no ticket system and no scheduler.
+`/reach:ideate` finds them with one grep, answers by **rewriting the claim**, and deletes the line in
+the same commit — so the answer lands where the next run already reads, rather than in a thread nobody
+opens again.
+
+**`/reach:milestone` is optional.** If everything your project produces can be asserted, `/reach:build`
+owns all of it and walkthroughs would be ceremony. You need it when there is an outcome only a person
+can judge.
+
+### 4. Verify — any time, in a terminal or from CI
 
 ```shell
 pwsh Scripts/reach.ps1 gate         # the gate alone      0 clean · 1 blocking · 2 refused to start
@@ -117,7 +157,7 @@ That reads the directory live with no install, and `/reload-plugins` applies edi
 Install is for *using* reach; `--plugin-dir` is for *changing* it — an installed copy is a snapshot
 pinned to a version and will not see your edits.
 
-## What `/reach:adopt` actually does
+## What `/reach:adopt` does
 
 A repository adopts this because the setup it has is not working. So adoption **replaces** what is
 there rather than adding beside it — two workflows in one repository means the failed one is still
@@ -206,6 +246,7 @@ One file at your repository root. Everything reads it.
 | `caps` | any other document → its cap |
 | `archive` | the read-only directory replaced files move into |
 | `checks` | where your own gate checks live (default `Scripts/gate-checks`) |
+| `human` | `{ doc, noun }` — the walkthrough document `/reach:milestone` reads. Omit it if nothing needs a person to judge it |
 | `adoption` | the adoption work list, while one exists |
 | `unmaintained` | directories no link check should read |
 | `tiers` | ordered, cheapest first: `{ id, what, run, requires, proves, cost, human }` |
@@ -251,11 +292,18 @@ Two rules keep this from becoming the eight-thousand-line gate it replaced:
 
 ## Status
 
-Early. What is here is what needed no guessing, and it is proven.
+Early, and honest about which parts have been through a fire.
 
-Not written yet: the governance layer — capped document templates, the unit roster, the commands
-split by who verifies them, and the worktree lanes with their unattended supervisor. Those get written
-against a real second repository rather than imagined ones, because building for shapes you have not
+**Proven:** the gate, its five checks, the tier contract, and the control suite — every check has been
+watched to fail for its own reason and pass again, by a script you can run.
+
+**Written, not yet weathered:** the four commands. They are a distillation of a process that ran daily
+on one large project for months, but their generic form here has not yet been through an adoption end
+to end. Expect the first repository that adopts to find the seams — that is what a 0.x is.
+
+**Deliberately absent:** worktree lanes and the unattended supervisor that keeps `/reach:build` running
+across fresh sessions. Those assume a branching model and a build cache layout, and they get written
+against a real second repository rather than imagined ones — because building for shapes you have not
 met is how a gate reaches eight thousand lines and still misses a file growing 85% underneath it.
 
 ## Licence
