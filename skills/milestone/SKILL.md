@@ -55,6 +55,9 @@ One agent per lane. Two in one share its index and its cache, which is the colli
 remove — and it is why this command does not work in the same units the build command is working in,
 even when the walkthrough needs them.
 
+A land also publishes. If it fails on the push rather than on the merge, the merge already happened:
+run `publish` to retry the push, not another land.
+
 ## What it decides, and what it never does
 
 **It builds presentation, and sets the values that tune it.** Styles, layout, effects, lighting, token

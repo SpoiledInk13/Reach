@@ -25,10 +25,21 @@ $ErrorActionPreference = 'Stop'
 $Lane = Join-Path $PSScriptRoot 'Lane.ps1'
 $Land = Join-Path $PSScriptRoot 'Land.ps1'
 $Run  = Join-Path $PSScriptRoot 'Run-Lane.ps1'
+$Publish = Join-Path $PSScriptRoot 'Publish.ps1'
 $Made = New-Object System.Collections.Generic.List[string]
 
+function Add-Remote {
+    # A bare repository beside the fixture, wired as origin. It returns the bare path so a control can
+    # look at what actually arrived instead of trusting the push's own exit code.
+    param([string]$Repo)
+    $bare = Join-Path (Split-Path -Parent $Repo) 'remote.git'
+    Invoke-Git -Path (Split-Path -Parent $Repo) -Arguments @('init', '-q', '--bare', $bare) | Out-Null
+    Invoke-Git -Path $Repo -Arguments @('remote', 'add', 'origin', $bare) | Out-Null
+    return $bare
+}
+
 function New-Fixture {
-    param([string]$Mode = 'objects', [string]$LaneDir = 'build')
+    param([string]$Mode = 'objects', [string]$LaneDir = 'build', [switch]$PublishAll)
     $root = Join-Path ([System.IO.Path]::GetTempPath()) ("reach-lane-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
     $repo = Join-Path $root 'repo'
     New-Item -ItemType Directory -Path $repo -Force | Out-Null
@@ -38,9 +49,11 @@ function New-Fixture {
     Invoke-Git -Path $repo -Arguments @('config', 'user.email', 'f@example.invalid') | Out-Null
     Invoke-Git -Path $repo -Arguments @('config', 'user.name', 'Fixture') | Out-Null
 
+    $integration = @{ branch = 'develop'; primary = 'working'; mode = $Mode; remote = 'origin' }
+    if ($PublishAll) { $integration['publishAll'] = $true }
     $config = @{
         project     = 'fixture'
-        integration = @{ branch = 'develop'; primary = 'working'; mode = $Mode; remote = 'origin' }
+        integration = $integration
         lanes       = @(@{ name = 'build'; branch = 'build'; worktree = "../lanes/$LaneDir"; command = '/reach:build' })
     } | ConvertTo-Json -Depth 6
     [System.IO.File]::WriteAllText((Join-Path $repo 'process.json'), $config, (New-Object System.Text.UTF8Encoding($false)))
@@ -229,6 +242,141 @@ Test-Control 'push mode pushes the lane branch and merges nothing locally' {
     if ($land.Code -ne 0) { return "push exited $($land.Code): $($land.Output)" }
     if ((Get-GitValue -Path $repo -Arguments @('rev-parse', 'develop')) -ne $before) { return 'it merged locally in push mode' }
     if (-not (Get-GitValue -Path $bare -Arguments @('rev-parse', '--verify', 'refs/heads/build'))) { return 'nothing reached the remote' }
+    return $true
+}
+
+# --------------------------------------------------------------------------------- publishing
+
+Test-Control 'a land publishes the integration branch without being asked' {
+    $repo = New-Fixture
+    $bare = Add-Remote $repo
+    [System.IO.File]::WriteAllText((Join-Path $repo 'note.md'), 'a decision')
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'a decision') | Out-Null
+
+    $land = Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($land.Code -ne 0) { return "land exited $($land.Code): $($land.Output)" }
+    $there = Get-GitValue -Path $bare -Arguments @('rev-parse', '--verify', 'refs/heads/develop')
+    if (-not $there) { return 'the integration branch never reached the remote' }
+    if ($there -ne (Get-GitValue -Path $repo -Arguments @('rev-parse', 'develop'))) { return 'the remote is at a different commit' }
+    return $true
+}
+
+Test-Control 'a land whose publish is refused fails, and keeps the merge it already made' {
+    $repo = New-Fixture
+    # A remote that resolves to nothing. The merge is local and succeeds; only the push can fail,
+    # which is the one ordering that makes "landed" and "published" come apart.
+    Invoke-Git -Path $repo -Arguments @('remote', 'add', 'origin', (Join-Path (Split-Path -Parent $repo) 'not-a-repository.git')) | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $repo 'note.md'), 'a decision')
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'a decision') | Out-Null
+    $tip = Get-GitValue -Path $repo -Arguments @('rev-parse', 'working')
+
+    $land = Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($land.Code -eq 0) { return 'it reported a clean land with nothing published' }
+    if ($land.Output -notmatch 'FAILED: publishing') { return 'it failed for another reason' }
+    # The merge is not rolled back -- only the publish is owed, and `publish` is what pays it. Without
+    # this line the control would pass just as happily on a land that threw the work away.
+    $contains = Invoke-Git -Path $repo -Arguments @('merge-base', '--is-ancestor', $tip, 'develop')
+    if ($contains.Code -ne 0) { return 'it lost the merge as well' }
+    return $true
+}
+
+Test-Control 'publish pays the debt a failed land left' {
+    $repo = New-Fixture
+    Invoke-Git -Path $repo -Arguments @('remote', 'add', 'origin', (Join-Path (Split-Path -Parent $repo) 'not-a-repository.git')) | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $repo 'note.md'), 'a decision')
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'a decision') | Out-Null
+    Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo) | Out-Null
+
+    # The remote comes back. Nothing needs re-landing; the publish is retried on its own.
+    $bare = Join-Path (Split-Path -Parent $repo) 'remote.git'
+    Invoke-Git -Path (Split-Path -Parent $repo) -Arguments @('init', '-q', '--bare', $bare) | Out-Null
+    Invoke-Git -Path $repo -Arguments @('remote', 'set-url', 'origin', $bare) | Out-Null
+
+    # $paid, not $publish -- see the shadowing note below; the same casing trap applies to $Publish.
+    $paid = Invoke-Script $Publish @('-Root', $repo)
+    if ($paid.Code -ne 0) { return "publish exited $($paid.Code): $($paid.Output)" }
+    if (-not (Get-GitValue -Path $bare -Arguments @('rev-parse', '--verify', 'refs/heads/develop'))) { return 'still unpublished' }
+    return $true
+}
+
+Test-Control 'landing again after a refused publish publishes, rather than reporting a clean no-op' {
+    $repo = New-Fixture
+    Invoke-Git -Path $repo -Arguments @('remote', 'add', 'origin', (Join-Path (Split-Path -Parent $repo) 'not-a-repository.git')) | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $repo 'note.md'), 'a decision')
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'a decision') | Out-Null
+    $first = Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($first.Code -eq 0) { return 'the first land did not fail' }
+
+    $bare = Join-Path (Split-Path -Parent $repo) 'remote.git'
+    Invoke-Git -Path (Split-Path -Parent $repo) -Arguments @('init', '-q', '--bare', $bare) | Out-Null
+    Invoke-Git -Path $repo -Arguments @('remote', 'set-url', 'origin', $bare) | Out-Null
+
+    # The merge is already on the integration branch, so this is the NOTHING TO LAND path. Exiting
+    # green there without retrying the push would confirm the exact state that went wrong.
+    $again = Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($again.Code -ne 0) { return "second land exited $($again.Code): $($again.Output)" }
+    if (-not (Get-GitValue -Path $bare -Arguments @('rev-parse', '--verify', 'refs/heads/develop'))) { return 'it reported no-op and left it unpublished' }
+    return $true
+}
+
+Test-Control 'a lane declared but never seeded does not block the publish' {
+    $repo = New-Fixture
+    $bare = Add-Remote $repo
+    # Naming a ref that does not exist makes git refuse the whole atomic push, so an unseeded lane
+    # would take every other ref down with it rather than being skipped.
+    $config = Read-TextUtf8 (Join-Path $repo 'process.json') | ConvertFrom-Json
+    $config.lanes = @($config.lanes) + @([pscustomobject]@{ name = 'ghost'; branch = 'never-seeded'; worktree = '../lanes/ghost'; command = '/reach:build' })
+    [System.IO.File]::WriteAllText((Join-Path $repo 'process.json'), ($config | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'declare a lane nobody seeded') | Out-Null
+
+    $land = Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($land.Code -ne 0) { return "land exited $($land.Code): $($land.Output)" }
+    if ($land.Output -notmatch 'PUBLISHED') { return 'nothing was published' }
+    if (Get-GitValue -Path $bare -Arguments @('rev-parse', '--verify', 'refs/heads/never-seeded')) { return 'it invented the branch' }
+    return $true
+}
+
+Test-Control 'a repository with no remote still lands, and says it published nothing' {
+    $repo = New-Fixture
+    [System.IO.File]::WriteAllText((Join-Path $repo 'note.md'), 'a decision')
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'a decision') | Out-Null
+
+    $land = Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($land.Code -ne 0) { return "land exited $($land.Code): $($land.Output)" }
+    # Silence here would read exactly like a successful publish, which is the failure this whole
+    # mechanism exists to stop.
+    if ($land.Output -notmatch 'NOT PUBLISHED') { return 'it did not say so' }
+    return $true
+}
+
+Test-Control 'a branch carrying no part of the process is left alone, until publishAll' {
+    $repo = New-Fixture
+    $bare = Add-Remote $repo
+    Invoke-Git -Path $repo -Arguments @('branch', 'scratch') | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $repo 'note.md'), 'a decision')
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'a decision') | Out-Null
+    # Not $land: PowerShell variables are case-insensitive, so assigning $land here would shadow the
+    # $Land script path for the second Invoke-Script below and run the result object as a file.
+    $plain = Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($plain.Code -ne 0) { return "land exited $($plain.Code): $($plain.Output)" }
+    if (Get-GitValue -Path $bare -Arguments @('rev-parse', '--verify', 'refs/heads/scratch')) { return 'it published a branch nobody asked it to' }
+
+    $opted = New-Fixture -PublishAll
+    $optedBare = Add-Remote $opted
+    Invoke-Git -Path $opted -Arguments @('branch', 'scratch') | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $opted 'note.md'), 'a decision')
+    Invoke-Git -Path $opted -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $opted -Arguments @('commit', '-qm', 'a decision') | Out-Null
+    $second = Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $opted), '-Root', $opted)
+    if ($second.Code -ne 0) { return "opted-in land exited $($second.Code): $($second.Output)" }
+    if (-not (Get-GitValue -Path $optedBare -Arguments @('rev-parse', '--verify', 'refs/heads/scratch'))) { return 'publishAll took nothing extra' }
     return $true
 }
 

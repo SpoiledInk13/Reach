@@ -60,6 +60,9 @@ pwsh Scripts/reach.ps1 land -Lane build -Message <file> -Verified <sha>
 different tree, the land is refused — because something arrived while you were working and what you
 proved is not what would land. Sync, re-run, land again.
 
+A land also publishes. If it fails on the push rather than on the merge, the merge already happened:
+run `publish` to retry the push. Landing again would report nothing to land and read like a fault.
+
 ## Questions
 
 A claim you cannot build as written — thin, contradicted by the spine, contradicted by what the code

@@ -167,6 +167,7 @@ pwsh Scripts/reach.ps1 lane seed build     # create the worktree and branch, and
 pwsh Scripts/reach.ps1 lane status         # every lane: branch, lock, dirt, how far ahead or behind
 pwsh Scripts/reach.ps1 lane sync build     # bring the integration branch in
 pwsh Scripts/reach.ps1 land -Lane build -Message msg.txt -Verified <sha>
+pwsh Scripts/reach.ps1 publish              # push those refs again, after one was refused
 ```
 
 Lanes remove the two collisions that come from two agents sharing one checkout — one index they both
@@ -186,6 +187,15 @@ the integration SHA read once. Read it twice — once to merge, once to swap —
 against a commit you never merged, silently discarding whatever landed in between. Pass `-Verified`
 with the commit you actually ran the tiers against and the land is refused outright if the merge would
 produce a different tree.
+
+A land then **publishes**: the integration branch, your checkout's branch and every lane's go to
+`integration.remote` in one atomic push. A land that merged and reached no remote is not finished —
+the branch everyone else reads does not carry it, so the next agent parks on the question this one
+answered and the one after re-derives it, while from the disk that holds the merge everything looks
+published. If the push is refused the land fails with it. The merge is not rolled back, so nothing
+needs re-landing: `publish` retries the push alone. A repository with no remote lands anyway and says
+it published nothing. Set `integration.publish` to `false` to turn it off, or
+`integration.publishAll` to `true` to take every other local branch along best-effort.
 
 On a repository you do not own, set `integration.mode` to `push`: lanes still isolate the work, and
 landing stays with the reviewers.

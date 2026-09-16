@@ -21,6 +21,12 @@
     In `push` mode nothing is merged locally: the lane branch is pushed and a human or CI merges it.
     That is the mode for a repository you do not own.
 
+    In `objects` mode the land then publishes -- the integration branch, the primary's and every
+    lane's, in one atomic push. Merging from objects touches nothing outside this disk, so without
+    that step the integration branch advances here and nowhere else, which from here is
+    indistinguishable from published work. A refused push fails the land without undoing the merge:
+    what is owed is the push, and `Publish.ps1` is what pays it.
+
 .PARAMETER Lane
     The lane to land. Its branch is the tip, and it is fast-forwarded to the result afterwards.
 
@@ -123,6 +129,10 @@ if (-not $tip) { Write-Host ("REFUSED: no branch '{0}'." -f $tipRef) -Foreground
 $already = Invoke-Git -Path $RepoRoot -Arguments @('merge-base', '--is-ancestor', $tip, $old)
 if ($already.Code -eq 0) {
     Write-Host ("NOTHING TO LAND: '{0}' is already contained in '{1}'." -f $tipRef, $integration.Branch) -ForegroundColor Yellow
+    # It still publishes. The ordinary way to arrive here is a land whose merge succeeded and whose
+    # push did not, followed by someone landing again -- and exiting green without retrying would
+    # confirm precisely the state that went wrong.
+    if ($integration.Publish) { exit (Invoke-ReachPublish -RepoRoot $RepoRoot -Process $Process) }
     exit 0
 }
 
@@ -184,5 +194,16 @@ if ($where) {
     if ($ff.Code -ne 0) {
         Write-Host ("  note: could not fast-forward '{0}' to {1}; sync it before the next piece of work." -f $tipRef, $integration.Branch) -ForegroundColor Yellow
     }
+}
+
+# ------------------------------------------------------------------------------------- publish
+
+# A land that merged and then reached no remote is not a land that finished: the branch everyone else
+# reads does not carry it, so the next agent parks on the question this one answered and the one after
+# re-derives it. The merge has already happened by here and is not undone -- the non-zero code says
+# the publish is owed, and `publish` is how it is paid.
+if ($integration.Publish) {
+    $published = Invoke-ReachPublish -RepoRoot $RepoRoot -Process $Process
+    if ($published -ne 0) { exit $published }
 }
 exit 0

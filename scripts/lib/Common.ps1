@@ -181,7 +181,82 @@ function Get-Integration {
         Primary = Get-Field $integration 'primary' 'working'
         Mode    = Get-Field $integration 'mode'    'objects'
         Remote  = Get-Field $integration 'remote'  'origin'
+
+        # Publishing is on unless a project turns it off, because the alternative default is a
+        # repository that looks landed from the one disk that holds it. `publishAll` is off because a
+        # branch carrying no part of the process may be somebody's half-finished experiment.
+        Publish    = [bool](Get-Field $integration 'publish'    $true)
+        PublishAll = [bool](Get-Field $integration 'publishAll' $false)
     }
+}
+
+function Invoke-ReachPublish {
+    <#
+        Pushes the refs that carry the process -- the integration branch, the primary checkout's
+        branch, and every lane's -- to the remote, atomically.
+
+        A land in `objects` mode merges from objects and touches nothing else, so without this the
+        integration branch advances on one disk and nowhere else. From that disk the result is
+        indistinguishable from published work, which is why this is not left to whoever remembers.
+
+        The refs go together because a partial publish leaves exactly that state for whichever ref
+        did not make it. Returns 0 published, or deliberately not published; 1 the remote refused.
+    #>
+    param([Parameter(Mandatory = $true)][string]$RepoRoot, $Process)
+
+    $integration = Get-Integration $Process
+
+    $wanted = New-Object System.Collections.Generic.List[string]
+    foreach ($name in @($integration.Branch, $integration.Primary)) {
+        if ($name -and -not $wanted.Contains($name)) { $wanted.Add($name) | Out-Null }
+    }
+    foreach ($lane in (ConvertTo-Array (Get-Field $Process 'lanes' @()))) {
+        $name = [string](Get-Field $lane 'branch' (Get-Field $lane 'name' ''))
+        if ($name -and -not $wanted.Contains($name)) { $wanted.Add($name) | Out-Null }
+    }
+
+    # A lane declared in process.json but never seeded has no branch yet, and naming a ref that does
+    # not exist makes git refuse the whole atomic push -- so the unseeded lane would block publication
+    # for every other ref rather than for itself.
+    $refs = New-Object System.Collections.Generic.List[string]
+    foreach ($name in $wanted) {
+        $exists = Invoke-Git -Path $RepoRoot -Arguments @('show-ref', '--verify', '--quiet', "refs/heads/$name")
+        if ($exists.Code -eq 0) { $refs.Add($name) | Out-Null }
+    }
+    if ($refs.Count -eq 0) {
+        Write-Host 'NOT PUBLISHED: process.json names no branch that exists here.' -ForegroundColor Yellow
+        return 0
+    }
+    $named = ($refs.ToArray()) -join ', '
+
+    # A repository with no remote is a legitimate local-only one rather than a misconfiguration, so
+    # the land stands -- but it says so out loud, because "nothing was published" and "everything was
+    # published" must never read the same from here.
+    $remotes = Invoke-Git -Path $RepoRoot -Arguments @('remote')
+    $known = @()
+    if ($remotes.Code -eq 0) { $known = @($remotes.Lines | ForEach-Object { $_.Trim() }) }
+    if ($known -notcontains $integration.Remote) {
+        Write-Host ("NOT PUBLISHED: no remote '{0}' here, so this stays local." -f $integration.Remote) -ForegroundColor Yellow
+        return 0
+    }
+
+    $push = Invoke-Git -Path $RepoRoot -Arguments (@('push', '--atomic', $integration.Remote) + $refs.ToArray())
+    if ($push.Code -ne 0) {
+        foreach ($line in $push.Lines) { Write-Host "  $line" -ForegroundColor DarkGray }
+        Write-Host ("FAILED: publishing {0} to '{1}' was refused, so the work is on this machine only. Fetch, reconcile, re-verify, and publish again. Never force." -f $named, $integration.Remote) -ForegroundColor Red
+        return 1
+    }
+    Write-Host ("PUBLISHED: {0} -> {1}." -f $named, $integration.Remote) -ForegroundColor Green
+
+    if ($integration.PublishAll) {
+        # Best effort by design: a pre-adoption dead end that has diverged is not a reason to call a
+        # good land failed.
+        $all = Invoke-Git -Path $RepoRoot -Arguments @('push', $integration.Remote, '--all')
+        if ($all.Code -ne 0) {
+            Write-Host 'WARNING: some other local branch did not publish. The refs that carry the process did.' -ForegroundColor Yellow
+        }
+    }
+    return 0
 }
 
 # ------------------------------------------------------------------------------------- the lock

@@ -113,6 +113,10 @@ built from objects and swapped in against the integration SHA read once, so
 it happens while every lane is busy rather than waiting for one. If the swap is refused, a lane landed
 while you were writing: sync, re-check, land again. Never force it.
 
+The land publishes, which is what makes "landed and published" one step rather than a thing to
+remember. If it fails on the push instead of the merge, the decision is already on the integration
+branch and only the remote is behind: run `publish`, not another land.
+
 The rules that do not vary: the gate is green on the tree as it will be committed, you read
 `git diff --cached` before committing, and the commit message goes through a file — a here-string
 breaks on quotes and turns words into pathspecs.
