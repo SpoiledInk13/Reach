@@ -188,6 +188,11 @@ before it died three lines into the loop body.
 pwsh Scripts/reach.ps1 audit
 ```
 
+**You do not have to run this yourself.** `/reach:adopt` runs it as its first step on a repository
+that has already adopted, shows you the list, and fills what you agree to. Run it directly when you
+want the answer without a conversation — a quick check, a sweep across several repositories, or a
+step in CI.
+
 Adoption happens once; reach keeps changing. A repository set up against an earlier version is missing
 whatever arrived since, and **nothing about that is visible** — the gate passes, the tiers run, and a
 mechanism that was never wired in simply never fires. The audit names every gap, why it matters, and
@@ -222,8 +227,11 @@ updates, so nothing may hard-code it. The file resolves the installed plugin at 
 
 ```shell
 claude plugin update reach@reach     # then restart, or /reload-plugins in an open session
-pwsh Scripts/reach.ps1 audit         # in each repository that has adopted
 ```
+
+Then, in each repository that has adopted, run `/reach:adopt`. It audits first, shows what the new
+version expects that the repository does not have, and fills what you agree to — including
+`Scripts/reach.ps1` itself, which a repository that adopted early may not have at all.
 
 **The marketplace-qualified name is required.** `claude plugin update reach` reports
 `Plugin "reach" not found`; `reach@reach` is plugin-name@marketplace-name and works. Naming the

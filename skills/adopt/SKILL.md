@@ -34,15 +34,20 @@ In that case, **do not tag, do not archive, and do not re-classify anything.** T
 workflow, and this repository has already replaced its own; running them again would archive the
 structure you are meant to be completing and re-sort claims that are already claims.
 
-Instead:
+Instead, measure the gap:
 
 ```shell
 pwsh Scripts/reach.ps1 audit
 ```
 
-That names every gap, why it matters, and the fix. Show the list, say which ones you propose to fill,
-and fill only what the owner agrees to. Then set `"reach"` in `process.json` to the installed version,
-so the next audit measures from here.
+**If `Scripts/reach.ps1` is not there, that is gap zero and you fix it before anything else** — copy
+`templates/reach.ps1` from this plugin into the repository as `Scripts/reach.ps1`, then run the audit
+through it. A repository that adopted before the shim existed cannot run the command that would tell
+it what it is missing, and the missing shim is one of the things it would say.
+
+The audit names every gap, why it matters, and the fix. Show the list, say which ones you propose to
+fill, and fill only what the owner agrees to. Then set `"reach"` in `process.json` to the installed
+version, so the next audit measures from here.
 
 A top-up writes; it never replaces. If filling a gap would overwrite a document the owner has written
 in — a spine, a unit document — say so and stop rather than doing it.
