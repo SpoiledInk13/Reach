@@ -4,7 +4,10 @@
 
       pwsh Scripts/reach.ps1 gate            the blocking gate      0 clean, 1 blocking, 2 refused
       pwsh Scripts/reach.ps1 all             gate + every tier      0 pass, 1 fail, 3 something skipped
-      pwsh Scripts/reach.ps1 prove           the plugin's own negative controls
+      pwsh Scripts/reach.ps1 lane <verb>     seed | sync | status | remove
+      pwsh Scripts/reach.ps1 land -Lane ...  land a lane onto the integration branch
+      pwsh Scripts/reach.ps1 run <lane>      run a lane unattended
+      pwsh Scripts/reach.ps1 prove           the plugin's own negative controls, gate and lanes
 
     Anything after the verb is passed straight through:
 
@@ -26,7 +29,14 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$verbs = @{ 'gate' = 'Verify-Gate.ps1'; 'all' = 'Verify-All.ps1'; 'prove' = 'Prove-Gate.ps1' }
+$verbs = @{
+    'gate'  = 'Verify-Gate.ps1'
+    'all'   = 'Verify-All.ps1'
+    'lane'  = 'Lane.ps1'
+    'land'  = 'Land.ps1'
+    'run'   = 'Run-Lane.ps1'
+    'prove' = 'Prove-Gate.ps1'
+}
 
 $what = if ($args.Count -gt 0) { [string]$args[0] } else { '' }
 if (-not $verbs.Contains($what)) {
@@ -87,8 +97,14 @@ $target = Join-Path $root ('scripts/' + $verbs[$what])
 # correctly but takes the leading "-Root" as a positional VALUE, so the gate would run against a
 # repository called "-Root" -- which reports refused, not wrong, but from the wrong cause.
 if ($what -eq 'prove') {
-    & $target @rest                                          # builds its own fixture; takes no -Root
-} else {
-    & $target -Root (Split-Path -Parent $PSScriptRoot) @rest
+    # Both suites, and the worse exit code wins. Running only the gate's controls and calling the
+    # result "proven" would leave the landing guards -- the most dangerous code here -- unchecked.
+    & $target @rest
+    $gateCode = $LASTEXITCODE
+    & (Join-Path $root 'scripts/Prove-Lanes.ps1') @rest
+    $laneCode = $LASTEXITCODE
+    exit ([Math]::Max($gateCode, $laneCode))
 }
+
+& $target -Root (Split-Path -Parent $PSScriptRoot) @rest
 exit $LASTEXITCODE

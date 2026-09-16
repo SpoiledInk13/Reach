@@ -126,7 +126,63 @@ opens again.
 owns all of it and walkthroughs would be ceremony. You need it when there is an outcome only a person
 can judge.
 
-### 4. Verify — any time, in a terminal or from CI
+### 4. Lanes — where the work actually happens
+
+A lane is a persistent **worktree** on its own branch, with its own build cache. `/reach:build` and
+`/reach:milestone` each work in one, and never in the checkout you have open.
+
+```shell
+pwsh Scripts/reach.ps1 lane seed build     # create the worktree and branch, and warm it
+pwsh Scripts/reach.ps1 lane status         # every lane: branch, lock, dirt, how far ahead or behind
+pwsh Scripts/reach.ps1 lane sync build     # bring the integration branch in
+pwsh Scripts/reach.ps1 land -Lane build -Message msg.txt -Verified <sha>
+```
+
+Lanes remove the two collisions that come from two agents sharing one checkout — one index they both
+stage into, and one working tree one edits while the other is mid-task. They also mean a command runs
+its tiers against **exactly the tree that lands**, where a lane that merely mirrored your source would
+be testing something else.
+
+That requires one thing of the repository, and `/reach:adopt` sets it up:
+
+- the **integration branch is checked out nowhere**, so a land advances it by ref while every lane is
+  busy — this is the difference between landing and queueing;
+- your checkout sits on **its own branch**;
+- each lane is a **worktree** on its own long-lived branch.
+
+A land is always a merge commit built from objects and swapped in with a **compare-and-swap** against
+the integration SHA read once. Read it twice — once to merge, once to swap — and the swap can succeed
+against a commit you never merged, silently discarding whatever landed in between. Pass `-Verified`
+with the commit you actually ran the tiers against and the land is refused outright if the merge would
+produce a different tree.
+
+On a repository you do not own, set `integration.mode` to `push`: lanes still isolate the work, and
+landing stays with the reviewers.
+
+### 5. Unattended — one lane, running itself
+
+```shell
+pwsh Scripts/reach.ps1 run build            # until a run commits nothing
+pwsh Scripts/reach.ps1 run build -Status -Follow    # from another terminal
+pwsh Scripts/reach.ps1 run build -Stop      # finishes the run in flight, then stops
+```
+
+Each run is a **new agent process**, not another turn in one session. That is the point: several of
+`/reach:build`'s stop conditions are *"this session has run long enough to stop trusting its own
+memory of the documents"*, and only a fresh process answers them. It halts when a run commits nothing,
+which means everything buildable is blocked on a question for `/reach:ideate`.
+
+> **This runs the agent with permission prompts disabled**, which is the only way an unattended loop
+> gets past its first tool call. It is **off unless you ask for it** — set `"unattended": true` on the
+> lane — and the setting is printed in the ledger on every run. Use it on a lane whose worktree you
+> own, and read `Logs/reach-lane/<lane>/` afterwards.
+
+`-SelfTest` checks the decision, the guards and the renderer in seconds. `-DryRun` runs one whole
+iteration against the real lane with a trivial prompt in place of the command — it exists because the
+self-test cannot see the loop, and in the original every guard passed on the first real invocation
+before it died three lines into the loop body.
+
+### 6. Verify — any time, in a terminal or from CI
 
 ```shell
 pwsh Scripts/reach.ps1 gate         # the gate alone      0 clean · 1 blocking · 2 refused to start
@@ -221,14 +277,22 @@ Your tiers are yours. The **contract** between them is not:
 - a tier marked `human` is never run. If an outcome can only be verified by looking at it or
   listening to it, nothing that runs may claim otherwise.
 
-### `Prove-Gate.ps1` — evidence the gate is not decoration
+### `Prove-Gate.ps1` and `Prove-Lanes.ps1` — evidence none of it is decoration
 
-Eleven controls. Each breaks one thing, requires the gate to go red **for that specific check**,
-restores it, and requires green again.
+Twenty-two controls across two suites, run together:
 
 ```shell
 pwsh Scripts/reach.ps1 prove
 ```
+
+**Eleven gate controls.** Each breaks one thing, requires the gate to go red **for that specific
+check**, restores it, and requires green again.
+
+**Eleven lane controls.** Each breaks one assumption landing depends on and requires the refusal to
+come from the guard it names — the integration branch being checked out, a tree nobody verified, a
+lane on the wrong branch, a supervisor driving a lane from inside itself, a second holder of the lock.
+Landing advances a shared ref from objects while other work may be arriving, so it is the most
+dangerous code here and gets the most controls.
 
 All three conditions matter. Red proves the check can fire; *red from the named check* stops a check
 being believed for years because something else was failing; green-after-restore proves the red was
@@ -250,6 +314,8 @@ One file at your repository root. Everything reads it.
 | `adoption` | the adoption work list, while one exists |
 | `unmaintained` | directories no link check should read |
 | `tiers` | ordered, cheapest first: `{ id, what, run, requires, proves, cost, human }` |
+| `integration` | `{ branch, primary, mode, remote }` — where lanes land. `mode` is `objects` or `push` |
+| `lanes` | `[{ name, branch, worktree, command, warm, unattended }]` — `warm` takes `{ run }` or `{ copy }` |
 
 ```json
 {
@@ -294,17 +360,16 @@ Two rules keep this from becoming the eight-thousand-line gate it replaced:
 
 Early, and honest about which parts have been through a fire.
 
-**Proven:** the gate, its five checks, the tier contract, and the control suite — every check has been
-watched to fail for its own reason and pass again, by a script you can run.
+**Proven:** the gate and its five checks, the tier contract, the lane and landing guards, and the
+supervisor's decision about whether a run did anything — twenty-two controls, each watched to fail for
+its own named reason and pass again, by a script you can run.
 
 **Written, not yet weathered:** the four commands. They are a distillation of a process that ran daily
 on one large project for months, but their generic form here has not yet been through an adoption end
 to end. Expect the first repository that adopts to find the seams — that is what a 0.x is.
 
-**Deliberately absent:** worktree lanes and the unattended supervisor that keeps `/reach:build` running
-across fresh sessions. Those assume a branching model and a build cache layout, and they get written
-against a real second repository rather than imagined ones — because building for shapes you have not
-met is how a gate reaches eight thousand lines and still misses a file growing 85% underneath it.
+**Deliberately absent:** nothing structural now. What is missing is mileage — this has not yet driven a
+real project end to end, and the first repository that adopts will find seams. That is what a 0.x is.
 
 ## Licence
 

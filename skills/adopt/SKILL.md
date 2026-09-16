@@ -105,6 +105,29 @@ Five parameters, and resist a sixth:
 **Caps are set from each document's own size plus a small margin** — never inherited from another
 project. A cap only does its work while it pinches.
 
+### The branching lanes require
+
+Lanes are what let a command run its tiers against exactly the tree that lands, and let a long
+unattended run happen without touching the checkout the owner is working in. They need one thing from
+the repository, and it is not negotiable:
+
+- an **integration branch checked out nowhere** — that is what lets a land advance it by ref while
+  every lane is busy, and it is the difference between landing and waiting;
+- the **primary checkout on its own branch**, the owner's and ideate's;
+- **each lane a worktree** on its own long-lived branch.
+
+On a repository that currently commits straight to its default branch, that is four commands and
+`/reach:adopt` runs them with the owner's agreement:
+
+```shell
+git branch <integration>            # if it does not exist
+git checkout -b <primary>           # the owner's checkout stops being on the integration branch
+Scripts/reach.ps1 lane seed build
+```
+
+On a repository you do not own, do none of this. Set `integration.mode` to `push`: lanes still isolate
+the work, and landing stays with the reviewers.
+
 Then copy `templates/reach.ps1` from the plugin into the repository as `Scripts/reach.ps1` and commit
 it. The plugin's scripts live at a path carrying its version number, so it moves on every update and
 nothing may hard-code it; that file resolves the installed plugin at run time and is what the owner

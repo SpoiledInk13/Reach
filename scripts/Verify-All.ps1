@@ -44,38 +44,24 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'lib/Common.ps1')
+
 $ScriptRoot = $PSScriptRoot
 $OnWindows = (-not (Test-Path variable:IsWindows)) -or $IsWindows
 
-function Read-TextUtf8 {
-    param([string]$Path)
-    return [System.IO.File]::ReadAllText($Path, (New-Object System.Text.UTF8Encoding($false)))
-}
 
-function Get-Field {
-    param($Object, [string]$Name, $Default = $null)
-    if ($null -eq $Object) { return $Default }
-    if (-not $Object.PSObject.Properties.Match($Name).Count) { return $Default }
-    $value = $Object.$Name
-    if ($null -eq $value) { return $Default }
-    return $value
-}
 
-if (-not $Root -or $Root.Trim().Length -eq 0) {
-    $Root = (& git rev-parse --show-toplevel 2>$null)
-    if ($LASTEXITCODE -ne 0 -or -not $Root) {
-        Write-Host "REFUSED: not in a git repository, and no -Root given." -ForegroundColor Red
-        exit 2
-    }
-}
-$RepoRoot = (Resolve-Path -LiteralPath $Root).Path
-
-$ProcessPath = Join-Path $RepoRoot 'process.json'
-if (-not (Test-Path -LiteralPath $ProcessPath)) {
-    Write-Host "REFUSED: no process.json at $ProcessPath. Run /reach:adopt first." -ForegroundColor Red
+$RepoRoot = Resolve-RepoRoot $Root
+if (-not $RepoRoot) {
+    Write-Host "REFUSED: not in a git repository, and no -Root given." -ForegroundColor Red
     exit 2
 }
-$Process = Read-TextUtf8 $ProcessPath | ConvertFrom-Json
+
+$Process = Read-ProcessConfig $RepoRoot
+if (-not $Process) {
+    Write-Host ("REFUSED: no process.json in {0}. Run /reach:adopt first." -f $RepoRoot) -ForegroundColor Red
+    exit 2
+}
 
 $Tiers = New-Object System.Collections.Generic.List[object]
 foreach ($t in (Get-Field $Process 'tiers' @())) { $Tiers.Add($t) | Out-Null }

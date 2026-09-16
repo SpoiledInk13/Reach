@@ -42,6 +42,24 @@ the unit document wants correcting — say so rather than coding around it.
    Parking a claim blocks the claim, not the run — that is the difference between a run that lands one
    unit and a run that lands three.
 
+## Where it works
+
+If the project declares lanes, work in this command's lane — its own worktree on its own branch, with
+its own build cache — and never in the primary checkout. Two agents sharing one checkout share one
+index they both stage into and one working tree each edits under the other; that is the collision
+lanes exist to remove, and it is also why a lane tests exactly the tree that lands rather than a copy
+of it.
+
+```shell
+pwsh Scripts/reach.ps1 lane sync build       # bring the integration branch in first
+pwsh Scripts/reach.ps1 all                   # from inside the lane
+pwsh Scripts/reach.ps1 land -Lane build -Message <file> -Verified <sha>
+```
+
+`-Verified` is the commit whose tree you actually ran the tiers against. If the merge would produce a
+different tree, the land is refused — because something arrived while you were working and what you
+proved is not what would land. Sync, re-run, land again.
+
 ## Questions
 
 A claim you cannot build as written — thin, contradicted by the spine, contradicted by what the code
