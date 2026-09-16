@@ -70,7 +70,7 @@ default scope is **user**, so `reach` is then available in every project you ope
 ```shell
 claude plugin list                  # what is installed, and whether it is enabled
 claude plugin details reach         # its components and what they cost in context
-claude plugin update reach          # after a new release
+claude plugin update reach@reach    # after a new release -- see Upgrading
 claude plugin uninstall reach@reach
 ```
 
@@ -217,6 +217,28 @@ pwsh Scripts/reach.ps1 all -Tier A              # run one tier
 plugin's scripts live at a path carrying its version number — that path moves every time the plugin
 updates, so nothing may hard-code it. The file resolves the installed plugin at run time. Set
 `REACH_ROOT` to a checkout of this repository to run a change before publishing it.
+
+### 8. Upgrading — when a new version lands
+
+```shell
+claude plugin update reach@reach     # then restart, or /reload-plugins in an open session
+pwsh Scripts/reach.ps1 audit         # in each repository that has adopted
+```
+
+**The marketplace-qualified name is required.** `claude plugin update reach` reports
+`Plugin "reach" not found`; `reach@reach` is plugin-name@marketplace-name and works. Naming the
+marketplace also refreshes it first, so there is no separate `marketplace update` step.
+
+The second line is the one that is easy to miss and the reason upgrading is not just a plugin command.
+A new version can expect things a repository adopted earlier does not have — a config field, a
+document, a seeded lane — and **none of that is visible**: the gate passes, the tiers run, and a
+mechanism that was never wired in simply never fires. `audit` names every gap and its fix, and
+`/reach:adopt` fills what you agree to without re-archiving anything.
+
+Two details worth knowing. Old versions stay in the plugin cache and `Scripts/reach.ps1` resolves the
+newest one, so your scripts are current from the next invocation. The **skills** in an already-open
+session are not, until you reload — so a session left open across an upgrade can be running new
+scripts against old instructions.
 
 ### Working on the plugin itself
 

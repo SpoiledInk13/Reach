@@ -1,5 +1,5 @@
 {
-  "reach": "0.5.0",
+  "reach": "0.5.1",
   "project": "<name>",
 
   "spine": { "path": "Docs/ARCHITECTURE.md", "cap": 0 },
