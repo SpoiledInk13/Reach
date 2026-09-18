@@ -1,0 +1,5 @@
+# Keep local review iterations; publish only the approved version.
+Reach-developer-content-draft*.pptx
+Reach-developer-content-draft.md
+__pycache__/
+*.pyc
