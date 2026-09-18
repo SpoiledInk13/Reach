@@ -120,37 +120,6 @@ if ($Stop) {
 
 # ------------------------------------------------------------------------------- reading a run
 
-function Get-LaneWorkCount {
-    <#
-        How many commits the lane itself wrote since $Since, from the reflog.
-
-        $Since is truncated to a whole second: reflog timestamps carry seconds and Get-Date carries
-        ticks, so a commit written in the same second the run started would otherwise read as older
-        than the run and go uncounted -- turning a short successful run into a false halt.
-    #>
-    param([string]$Path, [string]$Branch, [datetime]$Since)
-
-    $result = Invoke-Git -Path $Path -Arguments @('reflog', "refs/heads/$Branch", '--format=%H|%cI|%gs')
-    if ($result.Code -ne 0 -or $result.Lines.Count -eq 0) {
-        # `git branch` itself writes an entry, so an empty reflog means reflogs are off here. Throw
-        # rather than count zero: a silent zero is exactly the false halt this replaces.
-        throw "refs/heads/$Branch has no reflog. core.logAllRefUpdates must be on for a lane's work to be counted."
-    }
-
-    $floor = [datetimeoffset]$Since.AddTicks( - ($Since.Ticks % [timespan]::TicksPerSecond))
-    $count = 0
-    foreach ($line in $result.Lines) {
-        $parts = $line -split '\|', 3
-        if ($parts.Count -lt 3) { continue }
-        if ($parts[2] -notmatch '^commit') { continue }
-        $when = [datetimeoffset]::MinValue
-        if (-not [datetimeoffset]::TryParse($parts[1], [ref]$when)) { continue }
-        if ($when -lt $floor) { continue }
-        $count++
-    }
-    return $count
-}
-
 function Format-StreamEvent {
     <#
         One short line per interesting event. `claude -p` in its default text format prints nothing
@@ -233,11 +202,15 @@ function Invoke-SelfTest {
         # counted as the lane's work, and must not erase it either. The branch has to actually
         # diverge -- merging a branch at the same commit is a no-op that writes no reflog entry, and
         # would have passed this test while proving nothing.
+        # Named for this fixture, not a constant beside it: '../other-wt' was the same directory for
+        # every run, so two self-tests at once collided and the cleanup could remove one the other
+        # was still using.
+        $otherWt = "$fixture-other-wt"
         Invoke-Git -Path $fixture -Arguments @('branch', 'other', 'HEAD~1') | Out-Null
-        Invoke-Git -Path $fixture -Arguments @('worktree', 'add', '-q', (Join-Path $fixture '../other-wt'), 'other') | Out-Null
-        [System.IO.File]::WriteAllText((Join-Path $fixture '../other-wt/d.txt'), 'd')
-        Invoke-Git -Path (Join-Path $fixture '../other-wt') -Arguments @('add', '-A') | Out-Null
-        Invoke-Git -Path (Join-Path $fixture '../other-wt') -Arguments @('commit', '-qm', 'elsewhere') | Out-Null
+        Invoke-Git -Path $fixture -Arguments @('worktree', 'add', '-q', $otherWt, 'other') | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $otherWt 'd.txt'), 'd')
+        Invoke-Git -Path $otherWt -Arguments @('add', '-A') | Out-Null
+        Invoke-Git -Path $otherWt -Arguments @('commit', '-qm', 'elsewhere') | Out-Null
         $merge = Invoke-Git -Path $fixture -Arguments @('merge', '--no-ff', '--no-edit', 'other')
         Assert ($merge.Code -eq 0) 'the fixture merge actually merged something'
         Assert ((Get-LaneWorkCount -Path $fixture -Branch 'lane' -Since $base) -eq $afterCommit) 'a merge afterwards is not counted as the lane writing work'
@@ -251,7 +224,7 @@ function Invoke-SelfTest {
         Invoke-Git -Path $fixture -Arguments @('commit', '-qm', 'three') | Out-Null
         Assert ((Get-LaneWorkCount -Path $fixture -Branch 'lane' -Since $tight) -ge 1) 'a commit in the same second as the mark is counted'
     } finally {
-        Remove-Item -LiteralPath (Join-Path $fixture '../other-wt') -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $otherWt -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $fixture -Recurse -Force -ErrorAction SilentlyContinue
     }
 
@@ -298,6 +271,30 @@ if ($onBranch -ne $laneConfig.Branch) {
 if (-not $laneConfig.Command) {
     Write-Host ("REFUSED: lane '{0}' declares no command to run." -f $laneConfig.Name) -ForegroundColor Red
     exit 2
+}
+
+# The lane command goes to `claude -p` as a PROMPT. If the plugin that defines it is not installed,
+# "/reach:build" is not a command -- it is a line of prose, and the agent improvises against a
+# repository full of documents it has no instructions for. Unattended, and with permission prompts
+# skipped when the lane declares it. This is the one failure here that is invisible from the outside:
+# the loop starts, the ledger fills, runs commit, and nothing says the instructions never loaded.
+if ($laneConfig.Command -match '^/([A-Za-z0-9_.-]+):') {
+    $plugin = $Matches[1]
+    $manifest = Join-Path $HOME '.claude/plugins/installed_plugins.json'
+    $present = $false
+    if (Test-Path -LiteralPath $manifest) {
+        $listed = Read-TextUtf8 $manifest | ConvertFrom-Json
+        if ($listed.PSObject.Properties.Match('plugins').Count) {
+            foreach ($property in $listed.plugins.PSObject.Properties) {
+                if ($property.Name -like ($plugin + '@*')) { $present = $true; break }
+            }
+        }
+    }
+    if (-not $present) {
+        Write-Host ("REFUSED: lane '{0}' runs '{1}', and no plugin '{2}' is installed for this user. The agent would read that as prose rather than a command and improvise." -f $laneConfig.Name, $laneConfig.Command, $plugin) -ForegroundColor Red
+        Write-Host ("  claude plugin install {0}@{0}" -f $plugin) -ForegroundColor DarkGray
+        exit 2
+    }
 }
 
 $lock = Enter-LaneLock -LaneWorktree $laneConfig.Worktree -Owner 'Run-Lane'

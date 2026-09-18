@@ -341,13 +341,13 @@ the value.
 ### `Verify-Gate.ps1` — the blocking gate
 
 A driver that **finds** its checks instead of listing them: one `.ps1` per check, defining one
-function named for the file, discovered by reading two directories — the five that ship here, and
+function named for the file, discovered by reading two directories — the six that ship here, and
 your own. Adding a check never edits the driver.
 
 | Check | Fails when |
 |---|---|
-| `DocumentCaps` | a document outgrows its line cap, or nothing was measured at all |
-| `ArchiveImmutable` | the archive is edited, renamed or pruned — additions are fine |
+| `DocumentCaps` | a document outgrows its line cap, a cap was never set, or nothing was measured at all |
+| `ArchiveImmutable` | the archive is edited, renamed or pruned — in the working tree or in a commit this branch carries, and additions are fine |
 | `ClaimsAreProven` | a unit is marked built with claims nothing proves; evidence names a claim no document makes; an `*(owed)*` mark sits where it should not; a built unit holds a question it does not owe |
 | `DocLinks` | a maintained document links to something that no longer exists |
 | `AdoptionCounts` | a recorded line count stops matching its file, so a stalled adoption stays visible |
@@ -374,16 +374,16 @@ Your tiers are yours. The **contract** between them is not:
 
 ### `Prove-Gate.ps1` and `Prove-Lanes.ps1` — evidence none of it is decoration
 
-Twenty-eight controls across two suites, run together:
+Fifty controls across two suites, run together:
 
 ```shell
 pwsh Scripts/reach.ps1 prove
 ```
 
-**Eleven gate controls.** Each breaks one thing, requires the gate to go red **for that specific
+**Fifteen gate controls.** Each breaks one thing, requires the gate to go red **for that specific
 check**, restores it, and requires green again.
 
-**Seventeen lane, landing and audit controls.** Each breaks one assumption landing depends on and requires the refusal to
+**Thirty-five lane, landing and audit controls.** Each breaks one assumption landing depends on and requires the refusal to
 come from the guard it names — the integration branch being checked out, a tree nobody verified, a
 lane on the wrong branch, a supervisor driving a lane from inside itself, a second holder of the lock.
 Landing advances a shared ref from objects while other work may be arriving, so it is the most
@@ -456,8 +456,8 @@ Two rules keep this from becoming the eight-thousand-line gate it replaced:
 
 Early, and honest about which parts have been through a fire.
 
-**Proven:** the gate and its five checks, the tier contract, the lane and landing guards, and the
-supervisor's decision about whether a run did anything — twenty-eight controls, each watched to fail
+**Proven:** the gate and its six checks, the tier contract, the lane and landing guards, and the
+supervisor's decision about whether a run did anything — fifty controls, each watched to fail
 for its own named reason and pass again, by a script you can run.
 
 **Written, not yet weathered:** the four commands. They are a distillation of a process that ran daily

@@ -119,13 +119,19 @@ reaches them when it lands.
 
 ```shell
 pwsh Scripts/reach.ps1 gate
-pwsh Scripts/reach.ps1 land -Branch <your branch> -Message <file>
+pwsh Scripts/reach.ps1 land -Branch <your branch> -Message <file> -Verified <the sha you gated>
 ```
 
 `-Branch` rather than `-Lane`, because the primary checkout is not a lane. A land is a merge commit
 built from objects and swapped in against the integration SHA read once, so
 it happens while every lane is busy rather than waiting for one. If the swap is refused, a lane landed
 while you were writing: sync, re-check, land again. Never force it.
+
+`-Verified` is the commit you ran the gate against — `git rev-parse HEAD` after the commit. Without
+it a merge that quietly absorbed a lane's landing gets a warning and lands anyway; with it, a tree
+you did not check is refused. That matters more here than anywhere else: what this command lands is
+the documents, and a decision made from text that changed underneath it is the exact failure
+`PrimaryIsStale` exists to stop one step earlier.
 
 The land publishes, which is what makes "landed and published" one step rather than a thing to
 remember. If it fails on the push instead of the merge, the decision is already on the integration

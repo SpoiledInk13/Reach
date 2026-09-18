@@ -26,6 +26,10 @@ param([switch]$Keep)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# For Get-PowerShellExe: this suite launches the gate in a child process, and hard-coding the
+# launcher is what kept it from running anywhere but Windows.
+. (Join-Path $PSScriptRoot 'lib/Common.ps1')
+
 $ScriptRoot = $PSScriptRoot
 $Gate = Join-Path $ScriptRoot 'Verify-Gate.ps1'
 $Fixture = Join-Path ([System.IO.Path]::GetTempPath()) ("reach-prove-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
@@ -112,7 +116,8 @@ function New-Fixture {
 }
 
 function Invoke-Gate {
-    $output = & powershell -NoProfile -ExecutionPolicy Bypass -File $Gate -Root $Fixture 2>&1 | Out-String
+    $launch = Get-PowerShellArgs
+    $output = & (Get-PowerShellExe) @launch -File $Gate -Root $Fixture 2>&1 | Out-String
     return [pscustomobject]@{ Code = $LASTEXITCODE; Output = $output }
 }
 
@@ -125,11 +130,39 @@ $controls = @(
     @{ Check = 'DocumentCaps'; What = 'every document moves out from under its cap'
        Break = { Rename-Item -LiteralPath (Join-Path $Fixture 'Docs') -NewName 'Documents' } }
 
+    @{ Check = 'DocumentCaps'; What = 'a cap was never set, and is not reported as a document to split'
+       Says  = 'no cap is set'
+       Break = { Write-File 'process.json' ((Get-Content -LiteralPath (Join-Path $Fixture 'process.json') -Raw) -replace '"cap": 20', '"cap": 0') } }
+
     @{ Check = 'ArchiveImmutable'; What = 'the archive is edited'
        Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Reference/old.md') -Value 'tidied' } }
 
     @{ Check = 'ArchiveImmutable'; What = 'the archive is pruned'
        Break = { Remove-Item -LiteralPath (Join-Path $Fixture 'Reference/old.md') -Force } }
+
+    @{ Check = 'ArchiveImmutable'; What = 'the archive is edited in a commit this branch carries'
+       Break = { Push-Location -LiteralPath $Fixture
+                 try {
+                     # Committed, which is how it arrives for real: a lane edits, commits, and runs
+                     # the gate before landing. `diff HEAD` is clean by then and saw nothing.
+                     # The replacement keeps the line count so AdoptionCounts stays out of it.
+                     & git branch develop 2>&1 | Out-Null
+                     & git checkout -q -b working 2>&1 | Out-Null
+                     Write-File 'Reference/old.md' "# Old`n`nTidied.`n"
+                     & git add -A 2>&1 | Out-Null
+                     & git commit -qm 'tidy the archive' 2>&1 | Out-Null
+                 } finally { Pop-Location } } }
+
+    @{ Check = 'ArchiveImmutable'; What = 'the archive is pruned in a commit, taking its directory with it'
+       Break = { Push-Location -LiteralPath $Fixture
+                 try {
+                     # old.md is the only file in the archive, so committing its deletion removes the
+                     # directory too -- and the check used to return early on exactly that.
+                     & git branch develop 2>&1 | Out-Null
+                     & git checkout -q -b working 2>&1 | Out-Null
+                     & git rm -q 'Reference/old.md' 2>&1 | Out-Null
+                     & git commit -qm 'prune the archive' 2>&1 | Out-Null
+                 } finally { Pop-Location } } }
 
     @{ Check = 'ClaimsAreProven'; What = 'a built claim has no evidence'
        Break = { Write-File 'Tests/WidgetTests.cs' "void Test() { }`n" } }
@@ -199,6 +232,15 @@ foreach ($control in $controls) {
     if ($broken.Output -notmatch ("\[" + [regex]::Escape($control.Check) + "\]")) {
         $failures.Add("$name -- gate went red, but not from $($control.Check). A red for the wrong reason is how a check gets believed while testing nothing.") | Out-Null
         Write-Host ("  WRONG CHECK {0}" -f $name) -ForegroundColor Red
+        continue
+    }
+
+    # Optional, and only where the diagnosis IS the thing being proven. A check that goes red for two
+    # different causes with one message sends you to fix the wrong one, and the red alone cannot tell
+    # those apart -- so a control about wording has to read the wording.
+    if ($control.ContainsKey('Says') -and $broken.Output -notmatch $control.Says) {
+        $failures.Add("$name -- $($control.Check) fired, but did not say it. Expected /$($control.Says)/ in the failure.") | Out-Null
+        Write-Host ("  WRONG WHY   {0}" -f $name) -ForegroundColor Red
         continue
     }
 

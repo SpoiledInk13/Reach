@@ -36,7 +36,8 @@ if (-not $Process) {
 }
 
 $installed = '0.0.0'
-$manifest = Join-Path (Split-Path -Parent $PSScriptRoot) '.claude-plugin/plugin.json'
+$pluginRoot = Split-Path -Parent $PSScriptRoot
+$manifest = Join-Path $pluginRoot '.claude-plugin/plugin.json'
 if (Test-Path -LiteralPath $manifest) {
     $installed = [string](Get-Field (Read-TextUtf8 $manifest | ConvertFrom-Json) 'version' '0.0.0')
 }
@@ -49,11 +50,47 @@ function Add-Gap {
 
 # ------------------------------------------------------------------------------------ the config
 
+function ConvertTo-VersionOrNull {
+    param([string]$Text)
+    try { return [version]$Text } catch { return $null }
+}
+
 $adoptedAt = [string](Get-Field $Process 'reach' '')
+
+# 0.0.0 is the template's placeholder, which means the field was copied rather than set. Reading it
+# as a real version would make a fresh adoption look like the oldest possible one.
+if ($adoptedAt -eq '0.0.0') { $adoptedAt = '' }
+
 if (-not $adoptedAt) {
     Add-Gap 'process.json records no reach version' `
             'Nothing can tell what this repository was set up against, so nothing can tell what it is missing.' `
-            ("add `"reach`": `"{0}`"" -f $installed)
+            ("set `"reach`": `"{0}`"" -f $installed)
+}
+else {
+    # The field existed to make version drift visible and did not do it: a gap was added only when it
+    # was absent, and the two numbers were printed side by side with no verdict. So the state it was
+    # invented to catch -- a repository set up against an older reach, missing whatever arrived since
+    # -- read exactly like a repository that was up to date.
+    $recorded = ConvertTo-VersionOrNull $adoptedAt
+    $running = ConvertTo-VersionOrNull $installed
+
+    if (-not $recorded) {
+        Add-Gap ("process.json records reach '{0}', which is not a version" -f $adoptedAt) `
+                'Nothing can measure the distance between what this repository expects and what is installed.' `
+                ("set it to `"{0}`"" -f $installed)
+    }
+    elseif ($running -and $installed -ne '0.0.0') {
+        if ($recorded -lt $running) {
+            Add-Gap ("this repository was set up against reach {0}, and {1} is installed" -f $adoptedAt, $installed) `
+                    'Whatever arrived in between was never wired in here, and nothing about that is visible: the gate passes, the tiers run, and a mechanism that was never added simply never fires.' `
+                    'run /reach:adopt, which reads this and asks before writing'
+        }
+        elseif ($recorded -gt $running) {
+            Add-Gap ("this repository was set up against reach {0}, but only {1} is installed here" -f $adoptedAt, $installed) `
+                    'This machine runs fewer guards than the repository itself records, so a green here covers less than a green run against the version it expects.' `
+                    'claude plugin update reach@reach'
+        }
+    }
 }
 
 if (-not (Get-Field $Process 'spine' $null)) {
@@ -173,6 +210,9 @@ if ($adoption -and -not (Test-Path -LiteralPath (Join-Path $RepoRoot $adoption))
 
 Write-Host ("reach audit -- {0}" -f $RepoRoot) -ForegroundColor Cyan
 Write-Host ("  installed {0}   this repository was set up against {1}" -f $installed, $(if ($adoptedAt) { $adoptedAt } else { 'an unrecorded version' })) -ForegroundColor DarkGray
+# Which plugin answered. Scripts/reach.ps1 resolves the newest installed version silently, so when a
+# verdict looks wrong this is the first thing worth knowing.
+Write-Host ("  from      {0}" -f $pluginRoot) -ForegroundColor DarkGray
 Write-Host ''
 
 if ($gaps.Count -eq 0) {

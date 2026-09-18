@@ -145,6 +145,19 @@ if (-not $Message -or -not (Test-Path -LiteralPath $Message)) {
 
 $merge = Invoke-Git -Path $RepoRoot -Arguments @('merge-tree', '--write-tree', $old, $tip)
 if ($merge.Code -ne 0) {
+    # `merge-tree --write-tree` arrived in git 2.38. Before that the option is unknown, git exits
+    # non-zero, and everything below read that as a conflict -- so on Ubuntu 20.04 (2.25) or Debian
+    # bullseye (2.30) this sent people to hand-resolve a merge that was perfectly clean. A confidently
+    # wrong diagnosis costs more than a failure, because it is acted on.
+    $said = ($merge.Lines -join "`n")
+    if ($said -match 'unknown option' -or $said -match 'usage: git merge-tree') {
+        $version = Get-GitValue -Path $RepoRoot -Arguments @('--version')
+        Write-Host ("REFUSED: this git has no 'merge-tree --write-tree', which landing needs. It arrived in git 2.38{0}." -f $(if ($version) { " -- this is $version" } else { '' })) -ForegroundColor Red
+        Write-Host '  A land builds its merge from objects, with no working tree to build it in, and that is the only command that does it. Upgrade git, or set integration.mode to push and let the reviewers merge.' -ForegroundColor Red
+        foreach ($line in $merge.Lines) { Write-Host "  $line" -ForegroundColor DarkGray }
+        exit 2
+    }
+
     Write-Host ("CONFLICT: '{0}' and '{1}' do not merge cleanly." -f $tipRef, $integration.Branch) -ForegroundColor Red
     foreach ($line in $merge.Lines) { Write-Host "  $line" -ForegroundColor DarkGray }
     Write-Host 'Resolve it in a temporary worktree at the integration SHA, then land that result. Never resolve it in a lane or in the primary checkout.' -ForegroundColor Red

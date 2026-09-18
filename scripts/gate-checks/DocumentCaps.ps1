@@ -18,15 +18,35 @@
 function Test-DocumentCaps {
     $checked = 0
 
+    <#
+        A cap of zero is the template's placeholder, and it used to be read as a ceiling of zero
+        lines -- so a fresh adoption that had not set its caps yet failed EVERY document with "split
+        it or cut it". Nothing was too long and nothing wanted splitting; a number had never been
+        chosen. It stays blocking, because an unset cap is a real gap, and an unenforced cap is how a
+        document starts growing. Only the diagnosis changes.
+
+        A scriptblock in a local variable rather than a second function, because the gate dot-sources
+        a check file inside a function of its own and keeps only Test-<name>. A helper function beside
+        it loads without complaint and is gone by the time the check runs.
+    #>
+    $unsetCap = {
+        param([string]$Relative, [int]$Lines)
+        "no cap is set for {0} -- process.json has 0, which is the placeholder rather than a ceiling. It is {1} lines now; caps are set at adoption from the document's own size plus a small margin." -f $Relative, $Lines
+    }
+
     $spine = Get-Field $Process 'spine'
     if ($spine) {
-        $path = Join-Path $RepoRoot (Get-Field $spine 'path' 'Docs/ARCHITECTURE.md')
+        $relative = Get-Field $spine 'path' 'Docs/ARCHITECTURE.md'
+        $path = Join-Path $RepoRoot $relative
         $cap = [int](Get-Field $spine 'cap' 600)
         if (Test-Path -LiteralPath $path) {
             $checked++
             $lines = Get-LineCount $path
-            if ($lines -gt $cap) {
-                Add-Failure ("{0} is {1} lines, cap {2}. Split it or cut it; raising a cap is a conversation, not an edit." -f (Get-Field $spine 'path' 'Docs/ARCHITECTURE.md'), $lines, $cap)
+            if ($cap -le 0) {
+                Add-Failure (& $unsetCap $relative $lines)
+            }
+            elseif ($lines -gt $cap) {
+                Add-Failure ("{0} is {1} lines, cap {2}. Split it or cut it; raising a cap is a conversation, not an edit." -f $relative, $lines, $cap)
             }
         }
     }
@@ -37,11 +57,21 @@ function Test-DocumentCaps {
     if (Test-Path -LiteralPath $unitDir) {
         $unitCap = [int](Get-Field $unit 'cap' 500)
         $noun = Get-Field $unit 'noun' 'system'
-        foreach ($doc in (Get-ChildItem -LiteralPath $unitDir -Filter *.md -File)) {
-            $checked++
-            $lines = Get-LineCount $doc.FullName
-            if ($lines -gt $unitCap) {
-                Add-Failure ("{0}/{1} is {2} lines, cap {3}. A {4} that outgrows its cap is two {4}s." -f $unitRel, $doc.Name, $lines, $unitCap, $noun)
+        $documents = @(Get-ChildItem -LiteralPath $unitDir -Filter *.md -File)
+
+        # One failure for the unit cap, not one per document: the number is missing once, and saying
+        # so eleven times buries every other line in the report.
+        if ($unitCap -le 0 -and $documents.Count -gt 0) {
+            $checked += $documents.Count
+            Add-Failure ("no cap is set for the {0} documents in {1} -- process.json has unit.cap {2}. Caps are set at adoption from each document's own size plus a small margin, and a cap of zero is the placeholder, not a ceiling. Nothing here is too long; the number was never chosen." -f $noun, $unitRel, $unitCap)
+        }
+        else {
+            foreach ($doc in $documents) {
+                $checked++
+                $lines = Get-LineCount $doc.FullName
+                if ($lines -gt $unitCap) {
+                    Add-Failure ("{0}/{1} is {2} lines, cap {3}. A {4} that outgrows its cap is two {4}s." -f $unitRel, $doc.Name, $lines, $unitCap, $noun)
+                }
             }
         }
     }
@@ -53,8 +83,12 @@ function Test-DocumentCaps {
             if (-not (Test-Path -LiteralPath $path)) { continue }
             $checked++
             $lines = Get-LineCount $path
-            if ($lines -gt [int]$property.Value) {
-                Add-Failure ("{0} is {1} lines, cap {2}. Split it or cut it; raising a cap is a conversation, not an edit." -f $property.Name, $lines, [int]$property.Value)
+            $cap = [int]$property.Value
+            if ($cap -le 0) {
+                Add-Failure (& $unsetCap $property.Name $lines)
+            }
+            elseif ($lines -gt $cap) {
+                Add-Failure ("{0} is {1} lines, cap {2}. Split it or cut it; raising a cap is a conversation, not an edit." -f $property.Name, $lines, $cap)
             }
         }
     }

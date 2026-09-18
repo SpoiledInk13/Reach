@@ -126,6 +126,17 @@ documents, and that contract lives nowhere else:
 | `templates/walkthroughs.md` | the walkthrough list, if anything here needs a person to judge it |
 | `templates/reach.ps1` | `Scripts/reach.ps1` |
 
+Add reach's own working files to the repository's `.gitignore`, creating it if there is none:
+
+```
+/Logs/reach-lane/
+.reach-lane-lock
+```
+
+The supervisor writes its ledger and transcripts under the primary checkout, and a lane holds a lock
+file at its root. Both are this machine's state rather than the repository's, and a committed lock
+answers about a process on someone else's computer.
+
 If the repository has a corpus still to distil — documents whose content is going into unit documents
 over the coming weeks rather than today — write an adoption map, set `adoption` to its path, and give
 every source a row with its line count. Without the field, `AdoptionCounts` reads nothing and a

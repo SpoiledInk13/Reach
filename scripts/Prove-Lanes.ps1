@@ -66,7 +66,8 @@ function New-Fixture {
 
 function Invoke-Script {
     param([string]$Script, [string[]]$Arguments)
-    $output = & powershell -NoProfile -ExecutionPolicy Bypass -File $Script @Arguments 2>&1 | Out-String
+    $launch = Get-PowerShellArgs
+    $output = & (Get-PowerShellExe) @launch -File $Script @Arguments 2>&1 | Out-String
     return [pscustomobject]@{ Code = $LASTEXITCODE; Output = $output }
 }
 
@@ -75,6 +76,16 @@ function New-Message {
     $path = Join-Path (Split-Path -Parent $Repo) 'msg.txt'
     [System.IO.File]::WriteAllText($path, "$Text`n", (New-Object System.Text.UTF8Encoding($false)))
     return $path
+}
+
+function Set-ProcessField {
+    # One top-level field in a fixture's process.json, leaving everything else as it was.
+    param([string]$Repo, [string]$Name, $Value)
+    $path = Join-Path $Repo 'process.json'
+    $config = Read-TextUtf8 $path | ConvertFrom-Json
+    if ($config.PSObject.Properties.Match($Name).Count) { $config.$Name = $Value }
+    else { $config | Add-Member -NotePropertyName $Name -NotePropertyValue $Value }
+    [System.IO.File]::WriteAllText($path, ($config | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
 }
 
 $results = New-Object System.Collections.Generic.List[object]
@@ -148,6 +159,59 @@ Test-Control 'the lock refuses a second holder and releases on exit' {
     $third = Enter-LaneLock -LaneWorktree $worktree -Owner 'third'
     if (-not $third.Ok) { return 'it stayed locked after release' }
     Exit-LaneLock -LaneWorktree $worktree
+    return $true
+}
+
+Test-Control 'sync does not call a lane''s own lock uncommitted work' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+
+    # A supervisor holding its lane is the ordinary state, not an unusual one -- and it used to make
+    # the lane unsyncable, because the lock file is untracked and sat in the way of the guard.
+    $held = Enter-LaneLock -LaneWorktree $worktree -Owner 'supervisor'
+    if (-not $held.Ok) { return 'could not take the lock' }
+    try {
+        # develop must have moved, or sync short-circuits as up to date before reaching the guard.
+        Invoke-Git -Path $repo -Arguments @('checkout', '-q', 'develop') | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $repo 'b.txt'), 'b')
+        Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+        Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'on develop') | Out-Null
+        Invoke-Git -Path $repo -Arguments @('checkout', '-q', 'working') | Out-Null
+
+        $sync = Invoke-Script $Lane @('sync', 'build', '-Root', $repo)
+        if ($sync.Code -ne 0) { return "sync refused a lane holding only its own lock: $($sync.Output)" }
+    } finally {
+        Exit-LaneLock -LaneWorktree $worktree
+    }
+    return $true
+}
+
+Test-Control 'status does not count reach''s own files as uncommitted, and still counts everything else' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+
+    $held = Enter-LaneLock -LaneWorktree $worktree -Owner 'supervisor'
+    if (-not $held.Ok) { return 'could not take the lock' }
+    try {
+        # Where Run-Lane writes them: inside the primary checkout's working tree.
+        New-Item -ItemType Directory -Path (Join-Path $repo 'Logs/reach-lane/build') -Force | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $repo 'Logs/reach-lane/build/status.txt'), "running`n")
+
+        $quiet = Invoke-Script $Lane @('status', '-Root', $repo)
+        if ($quiet.Output -match 'uncommitted') { return "reach's own files were counted: $($quiet.Output)" }
+
+        # The other half: a filter that swallowed everything would have passed the line above. Real
+        # work in the same trees must still be reported, or the guard has been turned off rather
+        # than corrected.
+        [System.IO.File]::WriteAllText((Join-Path $repo 'mine.txt'), "mine`n")
+        [System.IO.File]::WriteAllText((Join-Path $worktree 'theirs.txt'), "theirs`n")
+        $loud = Invoke-Script $Lane @('status', '-Root', $repo)
+        if ($loud.Output -notmatch 'uncommitted') { return "real uncommitted work went unreported: $($loud.Output)" }
+    } finally {
+        Exit-LaneLock -LaneWorktree $worktree
+    }
     return $true
 }
 
@@ -259,6 +323,37 @@ Test-Control 'a land publishes the integration branch without being asked' {
     $there = Get-GitValue -Path $bare -Arguments @('rev-parse', '--verify', 'refs/heads/develop')
     if (-not $there) { return 'the integration branch never reached the remote' }
     if ($there -ne (Get-GitValue -Path $repo -Arguments @('rev-parse', 'develop'))) { return 'the remote is at a different commit' }
+    return $true
+}
+
+Test-Control 'a diverged lane branch does not block publication of the integration branch' {
+    $repo = New-Fixture
+    $bare = Add-Remote $repo
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+
+    # The lane goes one way and the remote's copy of it goes another, so pushing 'build' can only be
+    # refused. This used to be one --atomic push of develop, working and build together, so an
+    # abandoned lane branch held the integration branch hostage -- and `publish` recomputed the same
+    # doomed list every time it was run.
+    [System.IO.File]::WriteAllText((Join-Path $worktree 'lane.md'), 'lane work')
+    Invoke-Git -Path $worktree -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $worktree -Arguments @('commit', '-qm', 'in the lane') | Out-Null
+
+    [System.IO.File]::WriteAllText((Join-Path $repo 'note.md'), 'a decision')
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'a decision') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('push', 'origin', 'working:build') | Out-Null
+
+    $land = Invoke-Script $Land @('-Branch', 'working', '-Message', (New-Message $repo), '-Root', $repo)
+    if ($land.Code -ne 0) { return "a diverged lane branch failed the whole land: $($land.Output)" }
+
+    $there = Get-GitValue -Path $bare -Arguments @('rev-parse', '--verify', 'refs/heads/develop')
+    if (-not $there) { return 'the integration branch never reached the remote' }
+    if ($there -ne (Get-GitValue -Path $repo -Arguments @('rev-parse', 'develop'))) { return 'the remote is at a different commit' }
+
+    # And it must say so rather than passing in silence: that branch really did not publish.
+    if ($land.Output -notmatch 'WARNING') { return "it published nothing for the lane and said nothing: $($land.Output)" }
     return $true
 }
 
@@ -487,6 +582,30 @@ Test-Control 'audit notices the integration branch being checked out' {
     return $true
 }
 
+Test-Control 'audit measures the reach version a repository records against the one installed' {
+    # The field exists to make version drift visible. It used to gap only on absence and print the two
+    # numbers with no verdict, so the state it was invented to catch read as up to date.
+    $installed = [string](Get-Field (Read-TextUtf8 (Join-Path (Split-Path -Parent $PSScriptRoot) '.claude-plugin/plugin.json') | ConvertFrom-Json) 'version' '0.0.0')
+
+    $behind = New-Fixture
+    Set-ProcessField -Repo $behind -Name 'reach' -Value '0.0.1'
+    $old = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $behind)
+    if ($old.Code -eq 0) { return 'a repository set up against an older reach reported complete' }
+    if ($old.Output -notmatch 'set up against reach 0\.0\.1') { return "it did not name the drift: $($old.Output)" }
+
+    $ahead = New-Fixture
+    Set-ProcessField -Repo $ahead -Name 'reach' -Value '99.0.0'
+    $new = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $ahead)
+    if ($new.Output -notmatch 'only .* is installed here') { return "it did not notice this clone is behind: $($new.Output)" }
+
+    # And the other half: a matching version must not be reported as drift, or the check is just noise.
+    $same = New-Fixture
+    Set-ProcessField -Repo $same -Name 'reach' -Value $installed
+    $match = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $same)
+    if ($match.Output -match 'set up against reach') { return "it reported drift against its own version: $($match.Output)" }
+    return $true
+}
+
 Test-Control 'audit says not adopted when there is no process.json' {
     $repo = New-Fixture
     Remove-Item -LiteralPath (Join-Path $repo 'process.json') -Force
@@ -497,6 +616,38 @@ Test-Control 'audit says not adopted when there is no process.json' {
 }
 
 # ------------------------------------------------------------------------------- the supervisor
+
+Test-Control 'a lane whose reflog was expired is not reported as reflogs being off' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+
+    # What gc does after gc.reflogExpire, and what a clone does for a branch it never checked out.
+    # The branch is healthy and logging is on; only the entries are gone.
+    Invoke-Git -Path $worktree -Arguments @('reflog', 'expire', '--expire=all', '--all') | Out-Null
+
+    $count = Get-LaneWorkCount -Path $worktree -Branch 'build' -Since (Get-Date)
+    if ($count -ne 0) { return "it counted $count commits from an empty reflog" }
+    return $true
+}
+
+Test-Control 'a lane with reflogs actually turned off still says so' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+
+    # The other half. Counting zero here would be the false halt the reflog approach replaced, so
+    # the cause that genuinely cannot be counted must still refuse.
+    Invoke-Git -Path $worktree -Arguments @('config', 'core.logAllRefUpdates', 'false') | Out-Null
+    Invoke-Git -Path $worktree -Arguments @('reflog', 'expire', '--expire=all', '--all') | Out-Null
+
+    $threw = $null
+    try { Get-LaneWorkCount -Path $worktree -Branch 'build' -Since (Get-Date) | Out-Null }
+    catch { $threw = $_.Exception.Message }
+    if (-not $threw) { return 'it counted instead of refusing' }
+    if ($threw -notmatch 'logAllRefUpdates') { return "refused for another reason: $threw" }
+    return $true
+}
 
 Test-Control 'the supervisor refuses a lane on the wrong branch' {
     $repo = New-Fixture
@@ -524,6 +675,23 @@ Test-Control 'the supervisor refuses to drive a lane from inside itself' {
     $supervise = Invoke-Script $Run @('build', '-Root', $worktree, '-DryRun')
     if ($supervise.Code -eq 0) { return 'it ran anyway' }
     if ($supervise.Output -notmatch 'from inside itself') { return 'refused for another reason' }
+    return $true
+}
+
+Test-Control 'the supervisor refuses a lane command no installed plugin defines' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+
+    # A plugin name nothing could have installed. The lane is healthy in every other respect, so every
+    # earlier guard passes and this is the one that has to speak -- otherwise the agent is handed a
+    # slash command that resolves to nothing and left to improvise.
+    Set-ProcessField -Repo $repo -Name 'lanes' -Value @(@{
+        name = 'build'; branch = 'build'; worktree = '../lanes/build'; command = '/reach-not-installed:build'
+    })
+
+    $supervise = Invoke-Script $Run @('build', '-Root', $repo, '-DryRun')
+    if ($supervise.Code -eq 0) { return 'it started anyway' }
+    if ($supervise.Output -notmatch 'no plugin') { return "refused for another reason: $($supervise.Output)" }
     return $true
 }
 

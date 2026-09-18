@@ -149,7 +149,7 @@ function Invoke-Sync {
         exit 2
     }
 
-    $dirty = Invoke-Git -Path $lane.Worktree -Arguments @('status', '--porcelain')
+    $dirty = Get-WorktreeDirt -Path $lane.Worktree
     if ($dirty.Code -eq 0 -and $dirty.Lines.Count -gt 0 -and -not $Force) {
         Write-Host ("REFUSED: lane '{0}' has uncommitted changes. A sync writes the integration branch's whole delta over them." -f $lane.Name) -ForegroundColor Red
         foreach ($line in $dirty.Lines) { Write-Host "  $line" -ForegroundColor DarkGray }
@@ -196,7 +196,7 @@ function Invoke-SyncPrimary {
         exit 2
     }
 
-    $dirty = Invoke-Git -Path $where -Arguments @('status', '--porcelain')
+    $dirty = Get-WorktreeDirt -Path $where
     if ($dirty.Code -eq 0 -and $dirty.Lines.Count -gt 0 -and -not $Force) {
         Write-Host ("REFUSED: '{0}' has uncommitted changes. A sync writes the integration branch's whole delta over them." -f $integration.Primary) -ForegroundColor Red
         foreach ($line in $dirty.Lines) { Write-Host "  $line" -ForegroundColor DarkGray }
@@ -243,7 +243,7 @@ function Invoke-Status {
         Write-Host ("  {0,-12} {1,-10} not checked out anywhere" -f 'primary', $integration.Primary) -ForegroundColor DarkGray
     } else {
         $notes = New-Object System.Collections.Generic.List[string]
-        $dirty = Invoke-Git -Path $primaryAt -Arguments @('status', '--porcelain')
+        $dirty = Get-WorktreeDirt -Path $primaryAt
         if ($dirty.Lines.Count -gt 0) { $notes.Add("$($dirty.Lines.Count) uncommitted") | Out-Null }
         $counts = Get-GitValue -Path $primaryAt -Arguments @('rev-list', '--left-right', '--count', "$($integration.Branch)...HEAD")
         $stale = $false
@@ -268,7 +268,7 @@ function Invoke-Status {
         }
 
         $branch = Get-GitValue -Path $lane.Worktree -Arguments @('rev-parse', '--abbrev-ref', 'HEAD')
-        $dirty = Invoke-Git -Path $lane.Worktree -Arguments @('status', '--porcelain')
+        $dirty = Get-WorktreeDirt -Path $lane.Worktree
         $counts = Get-GitValue -Path $lane.Worktree -Arguments @('rev-list', '--left-right', '--count', "$($integration.Branch)...HEAD")
 
         $notes = New-Object System.Collections.Generic.List[string]
