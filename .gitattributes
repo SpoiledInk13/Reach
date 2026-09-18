@@ -1,0 +1,11 @@
+# The repository stores LF for everything it decides is text. Line endings in a working
+# tree are then the platform's business and never the diff's.
+#
+# Without this the repository was mixed with no rule behind it -- README.md, Common.ps1,
+# Land.ps1 and the skills were CRLF; Audit.ps1, Lane.ps1, Prove-Gate.ps1 and the gate checks
+# were LF -- so an editor or a script that wrote the other kind turned a two-line change into
+# a whole-file diff, and the real edit was unreviewable inside it. That happened.
+#
+# `auto` rather than a list: git detects binary content and leaves it alone, so nothing has
+# to be enumerated ahead of being added.
+* text=auto
