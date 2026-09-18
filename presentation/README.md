@@ -3,6 +3,20 @@
 Approved content and narrative: 17 main slides and 4 appendix slides, with speaker notes.
 The layout remains plain; visual style and assets are deferred.
 
+## Storybook visual edition
+
+The illustrated edition preserves the approved v1.0 copy and speaker notes. It adds
+five consistent storybook illustrations, skill labels, and editable diagrams.
+
+- [Illustrated PowerPoint](Reach-developer-presentation-storybook.pptx)
+- [PDF preview](Reach-developer-presentation-storybook.pdf)
+- [Artwork and visual references](artwork/README.md)
+
+Build it with `python presentation/build_storybook.py` after installing the same
+requirements below. The layout uses Georgia and Calibri, and its text-fit check
+uses their Windows font files. PowerPoint-rendered previews were used for review.
+The original v1.0 files remain the approved content baseline.
+
 - [PowerPoint presentation](Reach-developer-presentation-v1.0.pptx)
 - [Slide text and speaker notes](Reach-developer-presentation-v1.0.md)
 
