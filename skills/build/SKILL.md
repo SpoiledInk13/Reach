@@ -87,6 +87,20 @@ What you may decide yourself is what the contract is indifferent to: names, inte
 of two mechanisms satisfy it identically. A choice that would change what the contract *says* is a
 question, however confident you are.
 
+## Building
+
+**Write the code against the document, then consult the archive — in that order, always.** A port that
+begins by reading the old implementation reproduces the old architecture with better formatting, which
+is the failure the adoption was for. What `adopt` moved to `Reference/` is a parts bin and not a
+specification: mine it for edge cases, for values somebody measured once and would have to measure
+again, and for the mechanics of something fiddly — never for structure. A project that adopted nothing
+has no archive, and this is then simply the rule that the document is what you build against.
+
+**Respect the spine's hard constraints without being asked.** They are the project's rather than any
+one claim's, so a unit document does not restate them and a claim that never mentions one is still
+held to it. A constraint you find you cannot build against is a question like any other (above), not a
+thing to route around quietly.
+
 ## Proving
 
 A thing is not built until every tier has run and passed, and **you ran them**:
