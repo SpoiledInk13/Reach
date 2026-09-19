@@ -119,6 +119,37 @@ edit to a document instead, so read every land since you last looked. Anything b
 roster row, a named gap, a removed *(owed)* mark, or a deletion is an unreviewed design decision, and
 it is answered here like any `Open:` line.
 
+## The mockups
+
+A project whose interface is designed before it is built has mockups someone approves. **An approved
+mockup is a design document that draws, and it is distilled into claims here before the screen it shows
+is built.** The builder reads the unit documents and the spine, *nothing else*, and that is right: a lane
+building from a picture is a lane making design decisions. So a behaviour only the picture states reaches
+nobody, and the person who asked for it discovers it on a build instead.
+
+**The cost is measured.** A settings design was approved one day; every claim in the unit document saying
+what its controls do was written the next — after the owner played a build without them and left twenty
+`**Not working:**` lines, five of which the approved mockup had already specified in words. The picture
+was approved a day before the prose caught up, and it caught up because someone complained, not because
+anyone read the picture.
+
+So the loop this closes is **designed → approved → the claims it implies are written here → built →
+the look built over them**, in place of one that reached the owner first and cost twenty rounds.
+
+**Distil behaviour, never appearance.** A track the pointer sets by position is a claim; its colour, its
+radius and the palette it is drawn in are the milestone command's and are written nowhere here. The test
+is the one that already splits the lanes: if a test could assert it, it is a claim, and the rest is the
+look.
+
+**A mockup makes no design decision.** Where it disagrees with a document the document wins, and where it
+disagrees with the owner's own verdict the verdict wins. That half is not decoration — of those same
+twenty lines, three asked for the opposite of what the approved mockup drew. Distilling it would have
+caught the five and raised those three as contradictions to settle here, before a build rather than after
+one.
+
+**An approved mockup lands wherever the design work lives, which the land review above does not cover**
+unless it is asked to. Add that path: a handoff announces itself nowhere else.
+
 ## Landing
 
 **A decision is not an answer until it is landed and published.** Until a rewritten claim reaches the
