@@ -72,7 +72,7 @@ step is the one that saves the conversation; the gate only saves the branch.
 Other commands hand back what they cannot do as an `**Open:**` line under the thing it blocks. So:
 
 ```shell
-grep -rn '\*\*Open:\*\*' <unit.dir> <the human document>
+grep -rnE '\*\*(Open|Not working):\*\*' <unit.dir> <the human document>
 ```
 
 Unanchored, because the line is a **bullet**: a question sits under the claim it blocks as
@@ -86,6 +86,33 @@ question with commentary rather than a contract.
 The line was written by a run that parked rather than dug, so it is a hypothesis. **Verify its
 premise against the code and the spine before answering.** Expect the question to be smaller than it
 reads, or already answered.
+
+**The owner's verdict is in the inbox too, and it is disposed of differently.** A step the owner saw
+fail is written under the walkthrough as a `**Not working:**` line in the owner's words. It is not a
+question a lane asked — it is a symptom a person watched — so triage it into what it is a symptom of,
+which is usually already written down, and add a `→` line under their words naming where it went:
+
+- **already ruled and not yet built** — the claim exists and its evidence is unbuilt or *(owed)*. It is
+  the build command's backlog already and needs no new writing; the `→` line names the claim.
+- **no document decides it** — rewrite the claim as for any `Open:` line, and point the `→` line at it.
+- **presentation** — a value, a layout, an asset, a mix level. It is the milestone command's, and the
+  `→` line says so.
+
+**Never delete a `Not working:` line, and never restate it smaller.** It is the owner's verdict, and
+only the owner's confirmation retires it — unlike an `Open:` line, which goes with the claim that
+answers it. Deleting one because the claim behind it is now written closes a step the owner has not
+seen work, which is the one thing a walkthrough exists to prevent. The words are theirs; the `→` line
+goes under them rather than through them.
+
+**Until that line exists the milestone command does not act on the verdict at all**, because deciding
+what a symptom is a symptom of is this triage, and it guesses badly: a report that read exactly like a
+spacing value turned out to be a claim the unit already owed about a scrollbar keeping its own room, so
+changing the value would have moved every row, left the overlap, and read as progress. An untriaged
+verdict is a stalled walkthrough rather than a note.
+
+**The builder is never pointed at one of these lines.** It reads the unit documents, and a symptom in a
+person's words is not a claim it can build against. Turning one into a claim is the triage above, and
+it is this command's.
 
 **The inbox holds only what a run knew was a question.** A call made without noticing arrives as an
 edit to a document instead, so read every land since you last looked. Anything beyond a state flip, a

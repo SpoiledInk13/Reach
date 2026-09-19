@@ -116,7 +116,25 @@ built without an answer, land what was built, with the blockers, and stop.
 
 A step the owner reports as not working is written as one `**Not working:**` line under the
 walkthrough, in the owner's words, and the next run reads it before anything else. It does not become
-a smaller claim, and it does not close.
+a smaller claim, and it does not close until the owner says that step works.
+
+**An untriaged line is not work.** The ideate command triages each into what it is a symptom of and
+writes a `→` line under the owner's words; until that line exists, this command does not act on the
+verdict at all. It never decides what a symptom is a symptom of — that is the triage, and guessing at
+it is how a lane spends a day breaking more than it fixes. **The report reads like the fix and is
+not:** a report that read exactly like a spacing value turned out to be a claim the unit already owed
+about a scrollbar keeping its own room. Changing the value would have moved every row, left the
+overlap, and read as progress.
+
+Then read the `→` line and do what it says:
+
+- **it names a claim** — not this command's, at any point, however small the fix looks;
+- **it says presentation** — this command's, and it now names the specific thing to change;
+- **there is none yet** — carry on with the rest of the walkthrough, exactly as with a blocker.
+
+**Say in the hand-over which lines this artifact still carries**, which are untriaged, and what each
+triaged one waits on. Recording a verdict is not addressing it, and handing over something that
+repeats a fault without saying so is what makes this command read as ignoring the owner.
 
 ## Closing one
 
