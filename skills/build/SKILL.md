@@ -154,6 +154,16 @@ land carrying three units cannot give back one of them, and that is the ceiling 
 line count. Landing as you go also keeps each merge small, so the shared branch moving under you costs
 one unit's reconciliation instead of the whole run's.
 
+**Work that outlives the run is committed too, on the branch the run works on — never on a branch of
+its own.** Some units cannot land in pieces and take longer than one run, and the branch the run works
+on is what carries one across: the next run brings the integration branch in and continues on top of
+it, the unattended runner reads the commit as the progress it was rather than halting on a run that
+looks empty, and the branch says from outside the lane what is in flight. Say the state in the
+message — what is proven, what is left. A branch of its own does none of that and is read by nothing:
+eighty-four green scenarios once sat in a lane's index with the side branch three commits behind them,
+invisible to the sync, to the runner and to every read anyone made, and a single checkout in that
+worktree would have discarded them.
+
 ## Stop conditions
 
 Stop and report rather than pushing through when:
@@ -168,5 +178,7 @@ Stop and report rather than pushing through when:
   tell that a run is past its useful length, well before anything says the context is full. **A
   measurement never crosses a unit boundary;**
 - **you are at a boundary and would be starting a unit you cannot also finish and land.** Stopping at
-  a boundary forfeits nothing, so stop on the doubt rather than past it;
+  a boundary forfeits nothing, so stop on the doubt rather than past it. **Work already in flight is
+  not at a boundary**, and forfeits nothing only because it is committed first — stopping over a unit
+  that cannot land in pieces means committing it, not parking it;
 - a tier cannot be run, for any reason.
