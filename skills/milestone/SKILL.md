@@ -92,7 +92,6 @@ draws and builds it is a gate on itself. An older set of drawings is still never
 design call. Each of these is a blocker — none of which is a defect in this command's own layer, which
 it fixes rather than files:
 
-- a unit the entry needs that is `unbuilt`;
 - a `built` unit missing a behaviour or a quantity the look needs;
 - a choice no document makes — what a screen offers, what a press does, what a conflict resolves to;
 - a job no approved dependency covers, or one that cannot work for a stated, evidenced reason.
@@ -102,6 +101,9 @@ obvious — not even with an answer the owner gives mid-run, which gets no pass 
 
 ## Blockers
 
+A blocker is something no document decides, or a sentence that cannot happen as written — never a
+dependency the entry already names among what it needs.
+
 File each as one `**Open:**` line directly under the walkthrough it blocks, stating what is missing
 and the fact that shows it — the unit, the claim, a file and line. **No options and no
 recommendation.** It goes under the walkthrough rather than under a unit's claim because a `built`
@@ -109,26 +111,36 @@ unit cannot carry an `Open:` line, and because answering one means writing the m
 returns the work to the build command's backlog.
 
 Then carry on with any part of the walkthrough that does not depend on it. When nothing left can be
-built without an answer, land what was built, with the blockers, and stop.
+built without an answer, land what was built, with the blockers, and stop. **The document is the only
+place a blocker goes** — never memory, never the report alone.
 
 ## Running one
 
-1. **Read the walkthrough as written**, and the documents of what it needs, off disk. Never restate it
+1. **Sync the lane before reading anything.** Every document the next step reads is the lane's copy, so
+   a lane left where the last run stopped hands this one that run's tree — the blockers it filed
+   included, which have since been answered and built. Nothing runs this command on a loop, so this is
+   the lane that goes stale unattended, and it does: one was found 23 lands behind, sitting on the commit
+   that filed two blockers long since answered.
+2. **Read the walkthrough as written**, and the documents of what it needs, off disk. Never restate it
    smaller because part of it is hard; a sentence that cannot happen as written is a blocker.
-2. Check what it needs. Anything `unbuilt`, or carrying an `Open:` line the entry depends on, is a
-   blocker — file it and stop, rather than working in the same units as the build command.
-3. Build the presentation. Compose existing components rather than hand-rolling primitives, name
+3. Check what it needs. Anything `unbuilt`, or carrying an `Open:` line the entry depends on, means the
+   entry cannot start: say so in the report and move to the next walkthrough you can build, stopping when
+   there is none, rather than working in the same units as the build command. **That is not a blocker and
+   it is never filed as one.** The state is already recorded and the dependency is already named, so the
+   line says nothing new, and it cannot be answered by writing a claim — building the unit is the build
+   command's and is already its backlog.
+4. Build the presentation. Compose existing components rather than hand-rolling primitives, name
    tokens rather than literals, and use an approved dependency before making what it already provides.
-4. **What its own code does that can be asserted, it asserts**, in the same commit, at whatever tiers
+5. **What its own code does that can be asserted, it asserts**, in the same commit, at whatever tiers
    the project declares for it. Something assertable missing in a layer *below* this one is a blocker,
    not a test to write here; something assertable wrong *in* this layer is this command's own defect
    and its own fix.
-5. Produce the real artifact — the project's most expensive tier, the one that builds what ships.
-6. **Drive it first.** Take the build through the walkthrough's sentence the way a user would, with no
+6. Produce the real artifact — the project's most expensive tier, the one that builds what ships.
+7. **Drive it first.** Take the build through the walkthrough's sentence the way a user would, with no
    developer shortcuts, and capture what it looks like at each step. Read every capture against the
    sentence and the mockups, and fix and rebuild what is wrong. Name anything you could not drive, and
    name what no capture shows — how it sounds is the owner's to hear.
-7. **Hand it over and stop.** The owner runs the build. Verification happens on the real artifact or
+8. **Hand it over and stop.** The owner runs the build. Verification happens on the real artifact or
    not at all: the development environment is not what ships, and a walkthrough that only works there
    has not happened. **A capture never closes this gate, and neither does a description of what you
    saw.**
