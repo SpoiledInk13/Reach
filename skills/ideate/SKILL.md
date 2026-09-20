@@ -150,6 +150,15 @@ spacing value turned out to be a claim the unit already owed about a scrollbar k
 changing the value would have moved every row, left the overlap, and read as progress. An untriaged
 verdict is a stalled walkthrough rather than a note.
 
+**Before you stop, say whether the milestone command can act.** It reaches the owner nowhere else: where
+presentation is a separate lane this command cannot start, a walkthrough that is ready waits exactly as
+long as it takes a person to notice it is. The top walkthrough can be taken when what it needs is built,
+no `Open:` line stands under it, and every `Not working:` line carries a `→` line; it waits on **the
+owner** rather than on work when every one of those arrows names something built and proven. Say which of
+those it is in a sentence, and name what it waits on when it is not. Reporting eighteen triaged verdicts
+as "eighteen `Not working:` lines" describes a backlog and was the exact opposite: all eighteen were
+built, proven, and waiting on a build nobody had been told to ask for.
+
 **The builder is never pointed at one of these lines.** It reads the unit documents, and a symptom in a
 person's words is not a claim it can build against. Turning one into a claim is the triage above, and
 it is this command's.
