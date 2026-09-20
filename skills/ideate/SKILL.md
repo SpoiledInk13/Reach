@@ -109,6 +109,16 @@ answers it. Deleting one because the claim behind it is now written closes a ste
 seen work, which is the one thing a walkthrough exists to prevent. The words are theirs; the `→` line
 goes under them rather than through them.
 
+**A `→` line is refreshed in the commit that drains what it names.** It is not a note about the past,
+it is what the milestone command reads to learn what a step waits on, so a line left behind after the
+builder ships the row parks a step that is ready for the owner's eyes — and one naming an owed row
+without the mark sends the lane at work that does not exist yet, which is worse, because it is acted
+on. Nothing keeps the two together on its own: the line lives in the human document and the row in a
+unit document, and measured once, sixteen of seventeen rows a walkthrough's lines called *(owed)* had
+been built, some of them days earlier. `TriageLines` holds them together now, both directions, so this
+is a thing the gate says rather than a thing to remember. **Needs** is exempt — it names rows as an
+ordering rather than a verdict.
+
 **Until that line exists the milestone command does not act on the verdict at all**, because deciding
 what a symptom is a symptom of is this triage, and it guesses badly: a report that read exactly like a
 spacing value turned out to be a claim the unit already owed about a scrollbar keeping its own room, so

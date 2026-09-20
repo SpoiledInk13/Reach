@@ -351,6 +351,7 @@ your own. Adding a check never edits the driver.
 | `ClaimsAreProven` | a unit is marked built with claims nothing proves; evidence names a claim no document makes; an `*(owed)*` mark sits where it should not; a built unit holds a question it does not owe |
 | `DocLinks` | a maintained document links to something that no longer exists |
 | `AdoptionCounts` | a recorded line count stops matching its file, so a stalled adoption stays visible |
+| `TriageLines` | a walkthrough's arrow line disagrees with the row it names — calling a built row owed, which parks a ready step, or naming an owed row without the mark, which sends the lane at work that is not there |
 | `PrimaryIsStale` | the primary checkout is behind the integration branch, so its documents are not the ones the next reader sees |
 
 ```shell

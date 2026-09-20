@@ -58,6 +58,7 @@ function New-Fixture {
   "spine":    { "path": "Docs/ARCHITECTURE.md", "cap": 20 },
   "unit":     { "noun": "system", "dir": "Docs/systems", "cap": 30 },
   "evidence": { "noun": "scenario", "mark": "// scenario:", "search": ["Tests"] },
+  "human":    { "doc": "Docs/process/WALKTHROUGHS.md", "noun": "walkthrough" },
   "archive":  "Reference",
   "adoption": "Docs/process/ADOPTION.md",
   "checks":   "Scripts/gate-checks"
@@ -95,6 +96,19 @@ function New-Fixture {
 | `sprocket-meshes` | a sprocket meshes |
 '@
     Write-File 'Tests/WidgetTests.cs' "// scenario: widget-spins`nvoid Test() { }`n"
+    Write-File 'Docs/process/WALKTHROUGHS.md' (@'
+# Walkthroughs
+
+## 1. A widget turns
+
+**Turn the thing on and watch a widget spin.**
+
+**Needs:** widget.
+
+**Not working:** The widget does not spin.
+{0} The claim is `widget-spins`, built and proven. What the owner has not seen
+yet is the spinning itself, so this waits on a build rather than on the builder.
+'@ -f [char]0x2192)
     Write-File 'Reference/old.md' "# Old`n`nArchived.`n"
     Write-File 'Docs/process/ADOPTION.md' @'
 # Adoption
@@ -178,6 +192,26 @@ $controls = @(
 
     @{ Check = 'ClaimsAreProven'; What = 'a built unit holds a question it does not owe'
        Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Docs/systems/widget.md') -Value '  **Open:** how fast?' } }
+
+    @{ Check = 'TriageLines'; What = 'a triage line still calls a built row owed'
+       Break = { # Read-TextUtf8, not Get-Content: 5.1 decodes this un-BOMed UTF-8 file as CP1252, and
+                 # round-tripping it through a control mangles the arrow the check keys on. The first
+                 # version of this control did exactly that and reported the check as decoration.
+                 Write-File 'Docs/process/WALKTHROUGHS.md' ((Read-TextUtf8 (Join-Path $Fixture 'Docs/process/WALKTHROUGHS.md')) -replace '`widget-spins`, built and proven', '`widget-spins`, *(owed)*') } }
+
+    @{ Check = 'TriageLines'; What = 'a triage line calls an owed row built'
+       Break = { # The mark goes onto the row and the line naming it still reads built, which is the
+                 # direction that gets acted on: the lane is sent at work that is not there.
+                 Write-File 'Docs/systems/widget.md' ((Get-Content -LiteralPath (Join-Path $Fixture 'Docs/systems/widget.md') -Raw) -replace '\| `widget-spins` \|', '| `widget-spins` | *(owed)*')
+                 Write-File 'Tests/WidgetTests.cs' "void Test() { }`n" } }
+
+    @{ Check = 'TriageLines'; What = 'a triage line names an owed row on a continuation line'
+       Break = { # The same miss, with the name moved off the line the arrow opens. A check reading
+                 # physical lines passes this one and fails the one above, which is how it would
+                 # have shipped looking proven.
+                 Write-File 'Docs/systems/widget.md' ((Get-Content -LiteralPath (Join-Path $Fixture 'Docs/systems/widget.md') -Raw) -replace '\| `widget-spins` \|', '| `widget-spins` | *(owed)*')
+                 Write-File 'Tests/WidgetTests.cs' "void Test() { }`n"
+                 Write-File 'Docs/process/WALKTHROUGHS.md' ((Read-TextUtf8 (Join-Path $Fixture 'Docs/process/WALKTHROUGHS.md')) -replace 'The claim is `widget-spins`, built and proven\.', ('The claim it waits on is written down,' + "`r`n" + 'and it is named here: `widget-spins`, built and proven.')) } }
 
     @{ Check = 'DocLinks'; What = 'a maintained document links to nothing'
        Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Docs/ARCHITECTURE.md') -Value 'See [the plan](../Docs/plan.md).' } }
