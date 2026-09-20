@@ -71,8 +71,11 @@ the document wins and the conflict is a blocker, never built from the picture. A
 design call, however clearly it draws one. **Which framework or component system the software is
 built on is among what it never decides** — that is a unit's claim — so a mockup drawn before a unit
 moved is how a lane reaches for the framework it left, and a set of drawings that states a contract
-of its own is worth catching before it is read. A surface the mockups have not drawn has no
-direction yet and is a blocker, never a reason to read an older set of drawings for it.
+of its own is worth catching before it is read. A surface the mockups have not drawn is not a
+blocker: how a surface looks is this command's to decide, and one no drawing covers is that same
+decision taken without one. A drawing is the owner's cheaper review, never a surface's permission
+to be built — blocking on an absent one turns an accelerator into a gate, and where the same lane
+draws and builds it is a gate on itself. An older set of drawings is still never read for it.
 
 **Everything else goes back as a question.** It never builds what it finds missing and never makes a
 design call. Each of these is a blocker:
