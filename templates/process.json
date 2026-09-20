@@ -5,7 +5,7 @@
   "spine": { "path": "Docs/ARCHITECTURE.md", "cap": 0 },
   "unit": { "noun": "system", "dir": "Docs/systems", "cap": 0 },
   "evidence": { "noun": "scenario", "mark": "// scenario:", "search": ["Tests"] },
-  "human": { "doc": "Docs/process/WALKTHROUGHS.md", "noun": "walkthrough" },
+  "human": { "doc": "Docs/process/WALKTHROUGHS.md", "noun": "walkthrough", "layer": "src/presentation" },
 
   "archive": "Reference",
   "checks": "Scripts/gate-checks",

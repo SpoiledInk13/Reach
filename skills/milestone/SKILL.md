@@ -7,14 +7,25 @@ description: Build the layer only a person can verify — how the software looks
 Takes the top walkthrough from the project's human-verified document, builds the presentation it
 needs, hands the owner a real build, and deletes the walkthrough when they confirm it.
 
-It owns what cannot be asserted:
+It owns the presentation layer — `process.json`'s `human.layer`: the look, and the code that draws it.
 
 > **If an outcome can only be verified by looking at it or listening to it, it is presentation by
 > definition.**
 
-That is real work, not a thin shell: layout, type, colour, motion, light, effects, and how every cue
-sounds in the mix. What *can* be asserted belongs to the build command — including presentation code
-whose behaviour a test can drive, like a control's focus order or a backend's substitution.
+That rule says what a **claim** is, and so what a unit document states and a tier proves. It does not
+say who writes the code. **Everything in that layer is this command's to write and to repair** — the
+controls, the render, input and audio backends, the host — and a defect in one of them is this
+command's to fix however assertable it is, never a blocker and never handed back to the build command.
+A project naming no `human.layer` gives this command no code at all: it composes and tunes, and the
+build command writes everything.
+
+The work is real, not a thin shell: layout, type, colour, motion, light, effects, and how every cue
+sounds in the mix.
+
+**What a tier can prove, this command proves.** A claim whose code sits in that layer — a control's
+focus order, a rebinding that takes effect, what a screen offers — carries its test or its scenario,
+written here, in the commit that satisfies it. The owner's eyes and ears are the verdict on the rest,
+which is the part no tier can reach.
 
 **A project with no `human: true` tier does not need this command.** If everything it produces can be
 asserted, the build command owns all of it, and adding walkthroughs would be ceremony.
@@ -78,7 +89,8 @@ to be built — blocking on an absent one turns an accelerator into a gate, and 
 draws and builds it is a gate on itself. An older set of drawings is still never read for it.
 
 **Everything else goes back as a question.** It never builds what it finds missing and never makes a
-design call. Each of these is a blocker:
+design call. Each of these is a blocker — none of which is a defect in this command's own layer, which
+it fixes rather than files:
 
 - a unit the entry needs that is `unbuilt`;
 - a `built` unit missing a behaviour or a quantity the look needs;
@@ -107,8 +119,10 @@ built without an answer, land what was built, with the blockers, and stop.
    blocker — file it and stop, rather than working in the same units as the build command.
 3. Build the presentation. Compose existing components rather than hand-rolling primitives, name
    tokens rather than literals, and use an approved dependency before making what it already provides.
-4. **What its own code does that can be asserted, it asserts**, in the same commit. Anything
-   assertable it finds missing beneath it is a blocker, not a test to write here.
+4. **What its own code does that can be asserted, it asserts**, in the same commit, at whatever tiers
+   the project declares for it. Something assertable missing in a layer *below* this one is a blocker,
+   not a test to write here; something assertable wrong *in* this layer is this command's own defect
+   and its own fix.
 5. Produce the real artifact — the project's most expensive tier, the one that builds what ships.
 6. **Drive it first.** Take the build through the walkthrough's sentence the way a user would, with no
    developer shortcuts, and capture what it looks like at each step. Read every capture against the

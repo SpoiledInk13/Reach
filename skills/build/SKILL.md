@@ -8,14 +8,18 @@ Implements unbuilt work from the unit documents, proving each thing at every tie
 declares. **A run is not one unit.** It carries on until the roster has nothing left it can build
 without an answer.
 
-It owns every layer except the one only a person can judge, and the boundary is a rule rather than a
-folder:
+It owns every layer but one. **The boundary is the layer**: `process.json`'s `human.layer` belongs to
+the human-verified command — the look, and the code that draws it — and everything else is yours. A
+project naming no `human.layer` gives you all of its code.
 
 > **If an outcome can only be verified by looking at it or listening to it, it is presentation by
 > definition.**
 
-Anything that can be asserted is yours — including presentation code whose behaviour a test can
-drive. Anything that needs eyes or ears belongs to the human-verified command.
+That rule says what a **claim** is, and so what belongs in a unit document and owes proof. It does not
+say who writes the code. A claim whose code sits in that layer is a claim like any other — written in a
+unit document, proven by a tier — but the command that owns the layer is the one that satisfies it and
+writes that proof. A defect in that layer is its to repair however assertable it is, and never returns
+here.
 
 Read `process.json` first: it names the unit documents, the evidence mark, the tiers and their
 commands.

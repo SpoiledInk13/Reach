@@ -406,7 +406,7 @@ One file at your repository root. Everything reads it.
 | `caps` | any other document → its cap |
 | `archive` | the read-only directory replaced files move into |
 | `checks` | where your own gate checks live (default `Scripts/gate-checks`) |
-| `human` | `{ doc, noun }` — the walkthrough document `/reach:milestone` reads. Omit it if nothing needs a person to judge it |
+| `human` | `{ doc, noun, layer }` — the walkthrough document `/reach:milestone` reads, and the presentation layer it owns outright. Omit `layer` and it owns no code; omit the key entirely if nothing needs a person to judge it |
 | `adoption` | the adoption work list, while one exists |
 | `unmaintained` | directories no link check should read |
 | `tiers` | ordered, cheapest first: `{ id, what, run, requires, proves, cost, human }` |
