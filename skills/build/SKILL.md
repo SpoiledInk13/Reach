@@ -83,6 +83,14 @@ Then park that claim and carry on with anything that does not depend on the answ
 the only place a question goes** — never memory, never the report alone. A question anywhere else is a
 decision nobody reviews.
 
+**It reaches the inbox from the lane branch, not from the land.** Commit the line with the rest of the
+unit: a unit that cannot land in pieces holds one for as long as it takes, and the inbox reads what the
+lane added for exactly that reason. A question left uncommitted in the lane's working tree is a question
+nobody has, and one carried in the final report alone is a person remembering. The line is the design
+command's to answer and **this lane's to delete** — the answer lands as a rewritten claim alone, the
+next sync brings it in against the line, and the line goes in that merge. Do not land the document half
+on its own to close it: that makes the lane an ancestor of integration and the unit's code lands never.
+
 What you may decide yourself is what the contract is indifferent to: names, internal structure, which
 of two mechanisms satisfy it identically. A choice that would change what the contract *says* is a
 question, however confident you are.

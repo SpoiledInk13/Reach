@@ -84,9 +84,34 @@ Unanchored, because the line is a **bullet**: a question sits under the claim it
 `  - **Open:** …`, so any pattern expecting whitespace and then `**` reads every one of them as
 absent — which looks exactly like an empty inbox.
 
+**A lane branch is part of the inbox, and no sync brings one in.** A lane carries work it has not
+landed — a unit too long for one run, a unit that cannot land in pieces — so an `Open:` line filed
+under a claim of that unit is committed to the lane's branch and reaches integration only when the
+unit does, which may be days. Nothing announces it, and the grep above answers "empty" over a
+question that exists with a lane parked on it.
+
+```shell
+git diff <integration>...<lane> -- <unit.dir> <the human document> | grep -E '^\+.*\*\*(Open|Not working):\*\*'
+```
+
+**What the lane added**, never a grep of the branch. A lane runs behind integration, so a grep of one
+answers with every question integration has since answered and deleted: of nine lines found that way,
+eight were already settled and one was live. The three-dot diff reads from the merge base, so it shows
+the lane's own and nothing else. It needs no checkout and no lane to be idle, and it costs a second.
+Skipping it altogether leaves the question riding on a build report — a person remembering, which is
+the thing the document-as-inbox rule exists to replace.
+
 **Only this command answers one.** Answer it by **rewriting the claim**, and delete the `Open:` line
 in the same commit. An answer written beneath the question is an append, and the next reader sees a
 question with commentary rather than a contract.
+
+**A lane's question is answered on integration and deleted in the lane.** A line that is not on the
+integration branch cannot go in the commit that answers it, so that commit carries the rewritten claim
+alone and the lane drops the line when it syncs the answer in. Until then the line stands and reads as
+open, which is right: it is, until the lane has the answer. **Never land the lane's document half to
+close it.** A land is a merge commit built from the lane tip, so one carrying the document alone makes
+the lane an ancestor of integration, and the code the lane is still writing then lands never — the
+later merge finding the tip already in.
 
 The line was written by a run that parked rather than dug, so it is a hypothesis. **Verify its
 premise against the code and the spine before answering.** Expect the question to be smaller than it
