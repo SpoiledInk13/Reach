@@ -68,7 +68,11 @@ nothing the rest of the system does not, so the look is built over what the unit
 **It takes direction from the owner's mockups.** What works in a mockup is taken. Where one
 contradicts a document — an option a screen offers that no row provides, a control the kit lacks —
 the document wins and the conflict is a blocker, never built from the picture. A mockup makes no
-design call, however clearly it draws one.
+design call, however clearly it draws one. **Which framework or component system the software is
+built on is among what it never decides** — that is a unit's claim — so a mockup drawn before a unit
+moved is how a lane reaches for the framework it left, and a set of drawings that states a contract
+of its own is worth catching before it is read. A surface the mockups have not drawn has no
+direction yet and is a blocker, never a reason to read an older set of drawings for it.
 
 **Everything else goes back as a question.** It never builds what it finds missing and never makes a
 design call. Each of these is a blocker:
