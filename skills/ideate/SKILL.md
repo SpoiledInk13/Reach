@@ -101,6 +101,12 @@ the lane's own and nothing else. It needs no checkout and no lane to be idle, an
 Skipping it altogether leaves the question riding on a build report — a person remembering, which is
 the thing the document-as-inbox rule exists to replace.
 
+**And grep it again before you stop.** A lane does not wait for the conversation to end: one run opened
+on a clean inbox and two of the builder's lands filed an `**Open:**` line each while it worked, both
+invisible to the opening pass and to every sync after it, because a sync brings a question in without
+anything announcing it. A closing grep costs a second, and it is the only thing standing between a
+filed question and a whole cycle of the builder parking on it again.
+
 **Only this command answers one.** Answer it by **rewriting the claim**, and delete the `Open:` line
 in the same commit. An answer written beneath the question is an append, and the next reader sees a
 question with commentary rather than a contract.
