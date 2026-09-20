@@ -36,7 +36,12 @@ backlog.
 **A claim added to a unit that is already `built` carries its evidence row in the same commit, marked
 *(owed)*.** The unit stays `built`. Never flip one back for a new claim: doing that stops every unit
 that depends on it, none of which use the claim you just added. The mark is what keeps the claim from
-reading as done.
+reading as done. **A reworded claim owes exactly as much as a new one**, and reading this rule as
+covering additions alone is how one project landed the same defect twice: two rewordings each left the
+built code narrower than the sentence that now described it, and both lands passed their own checks,
+because nothing compares prose to code. So the test is whether the built code satisfies the sentence
+*as it now reads* — search for the subject of every changed sentence — and where it does not, the row
+is marked in that same commit.
 
 **Nothing here is append-only, and that is the whole point.** Documents that may only grow stop being
 read, and then stop being true, in that order.
