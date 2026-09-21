@@ -44,11 +44,13 @@ Worth stating separately, because this is where the defect grows back quietly. A
 notes across sessions builds the same shape of artifact the rules above are about: an index loaded
 every session, with a hard size limit, that every session may add to and nothing ever removes from.
 
-Compacting such an index buys less each time. Squeezing out prose raises the share that is
-irreducible *address* — the labels and filenames you need in order to find anything — so each pass
-leaves less to compress and the next one falls due sooner. One index ran through four compactions in
-six days and came out two-thirds address, with about thirty entries of headroom left. Compaction was
-never the mechanism; it was buying time against the wrong problem.
+Compacting such an index is not a smaller version of the fix. It is a different act, and it reduces
+by the wrong criterion: length is not the bar, usefulness is. So it cuts the trailing detail and
+keeps the leading label and filename, which is backwards — the detail is why the note was loaded,
+and the address is only how to find it again. It also raises the share that is irreducible
+*address*, so each pass leaves less to compress and the next one falls due sooner. One index ran
+through four compactions in six days and came out two-thirds address, with about thirty entries of
+headroom left. **Give bytes back by deleting whole lines, never by shortening one.**
 
 The fix is the same one caps force on documents, and it costs nothing here because **the index is a
 working set, not the archive** — every note stays on disk and stays greppable, and the index lists
@@ -57,6 +59,13 @@ only what you would get wrong without it:
 > **A note graduates out of the index once its lesson is stated in a document or enforced by a
 > guard.** The document binds every session; the index binds only the sessions that load it. So
 > writing the lesson where it binds is the better fix, and evicting the note then loses nothing.
+
+**A line the session itself wrote is not exempt**, and this is the loophole the rule leaks through.
+Trimming notes you added an hour earlier does not feel like compaction; it feels like editing your
+own draft. It is also the cheapest way to give bytes back, because every other line in the index
+would have to be read and judged first. One agent broke this rule the same day it was written, in a
+commit titled *tighten this session's index lines*. A note that stops clearing the bar is deleted
+whole, and a note that has gone stale is corrected — which is neither, and is always right.
 
 Two things make this safe to do in bulk. Check by concept in the *document's* vocabulary, never the
 note's phrasing — searching for the words the note happens to use reports absences that are not
