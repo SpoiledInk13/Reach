@@ -129,7 +129,13 @@ question a lane asked — it is a symptom a person watched — so triage it into
 which is usually already written down, and add a `→` line under their words naming where it went:
 
 - **already ruled and not yet built** — the claim exists and its evidence is unbuilt or *(owed)*. It is
-  the build command's backlog already and needs no new writing; the `→` line names the claim.
+  a lane's backlog already and needs no new writing; the `→` line names the claim. **Which lane is read
+  off the layer the claim's code sits in, never off the claim being assertable**: presentation code is
+  the milestone command's however provable a row is, so evidence taken over a laid-out screen or a
+  bought control is written in that lane. Six arrows on one walkthrough named the build command over
+  three rows whose whole mechanism was presentation, and the presentation disposition below does
+  not catch that, because it reads as appearance while these were claims: following one crosses a
+  lane boundary, and parking on one instead is a cycle spent.
 - **no document decides it** — rewrite the claim as for any `Open:` line, and point the `→` line at it.
 - **presentation** — a value, a layout, an asset, a mix level. It is the milestone command's, and the
   `→` line says so.
