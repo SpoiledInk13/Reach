@@ -135,7 +135,12 @@ which is usually already written down, and add a `→` line under their words na
   bought control is written in that lane. Six arrows on one walkthrough named the build command over
   three rows whose whole mechanism was presentation, and the presentation disposition below does
   not catch that, because it reads as appearance while these were claims: following one crosses a
-  lane boundary, and parking on one instead is a cycle spent.
+  lane boundary, and parking on one instead is a cycle spent. **The claim's code is the code
+  satisfying it writes, never the code it reads** — so a declaration, and a check that holds
+  presentation sources to it, belong to the build command however presentation their subject is.
+  Reading it the other way routed one such row to the milestone command, which parked a build run on
+  a row it had already satisfied and cost the answer a whole cycle. Ask which files a lane would
+  write, not which it would open.
 - **no document decides it** — rewrite the claim as for any `Open:` line, and point the `→` line at it.
 - **presentation** — a value, a layout, an asset, a mix level. It is the milestone command's, and the
   `→` line says so.
