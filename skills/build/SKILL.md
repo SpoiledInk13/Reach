@@ -34,17 +34,32 @@ the unit document wants correcting — say so rather than coding around it.
 
 ## Picking work
 
-1. Read the roster. Take the earliest unit whose dependencies are all `built`, or the next unbuilt
-   claim inside a unit already in progress. If the project has a human-verified document, what its top
-   entry needs comes first: a walkthrough waiting on its units leaves that command with no work.
+1. Read the roster. Take the earliest unit with a claim you can build, or the next unbuilt claim inside
+   a unit already in progress. If the project has a human-verified document, what its top entry needs
+   comes first: a walkthrough waiting on its units leaves that command with no work. **A dependency
+   being `unbuilt` does not block a claim** — what a claim reads from a unit that does not exist yet is
+   stood in for at a named boundary, and the document says which under *Waiting on other units*. A
+   dependency blocks a claim only when the thing it would stand in for is the thing the claim is about.
+   Wait for `built` dependencies instead and a roster stalls whole: on the project this was written for
+   it left fourteen of sixteen unbuilt units unreachable, three of them permanently, because they
+   depended on each other in a cycle — while every one of the twenty-two already built had been built
+   over stand-ins, two of them over units still unbuilt that day.
 2. **A built unit's *(owed)* claim is work like any unbuilt one**, and it holds up a dependent only
    when that dependent's own work needs it. An owed claim never makes its unit anything but `built`.
 3. If a claim cannot be built as written, file it as a question and build around it. **A unit document
    is a contract; where it cannot be built against, that is a question and not something to improvise
    past.**
-4. **When a unit is finished or wholly blocked, commit it, land it, and pick again from step 1.**
-   Parking a claim blocks the claim, not the run — that is the difference between a run that lands one
-   unit and a run that lands three.
+4. **When a unit is finished, wholly blocked, or as far as this run takes it, commit it, land it**, and
+   pick again from step 1. Parking a claim blocks the claim, not the run — that is the difference
+   between a run that lands one unit and a run that lands three.
+5. **A land is a green slice, never a finished unit.** What lands is whatever claims are proven and the
+   checks are green over; the unit keeps its state, so a slice of an unbuilt one lands `unbuilt` and the
+   tests are the record of how far it got. Most units are bigger than one run and land several times:
+   one of sixty claims took eight lands over two days and was `unbuilt` for seven of them. Read "finish"
+   anywhere here as the state flip and the rule inverts into a deadlock — no unit larger than a run may
+   be started, because none can be flipped in one, so four were once reported as buildable work that
+   could not be landed when three were smaller than units already built and the fourth was nine claims
+   proven of fifteen.
 
 ## Where it works
 
@@ -189,8 +204,11 @@ Stop and report rather than pushing through when:
   carrying the green from the unit before. Answering *what does the contract say?* from memory is the
   tell that a run is past its useful length, well before anything says the context is full. **A
   measurement never crosses a unit boundary;**
-- **you are at a boundary and would be starting a unit you cannot also finish and land.** Stopping at
-  a boundary forfeits nothing, so stop on the doubt rather than past it. **Work already in flight is
-  not at a boundary**, and forfeits nothing only because it is committed first — stopping over a unit
-  that cannot land in pieces means committing it, not parking it;
+- **you are at a boundary and could not reach a green landable slice of the unit you would start.** The
+  test is one claim proven and the checks green, not the unit finished — a unit you cannot finish is a
+  unit you land twice, and stopping over one is how a whole roster reads as blocked. Stop only where the
+  next unit's first claim is out of reach: its dependency is unbuilt and cannot be stood in for, or the
+  run has no room for one claim and its test. **Work already in flight is not at a boundary**, and
+  forfeits nothing only because it is committed first — stopping over a unit that cannot land in pieces
+  means committing it, not parking it;
 - a tier cannot be run, for any reason.

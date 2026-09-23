@@ -33,7 +33,14 @@ it is written here first, and the code is built against it -- never the other wa
 
 ## Dependencies
 
-The units this one needs built before it can be. Names only.
+The units this one reads. Names only.
+
+Being listed here does not mean waiting: what this unit reads from one that is not built yet is stood
+in for at a named boundary, and the line below says which, so a reader can tell a stand-in from a gap.
+A dependency blocks a claim only when the thing it would stand in for is the thing the claim is about.
+
+**Waiting on other units, and named rather than quietly missing:** what is stood in for, whose it is,
+and which claims are proven over it.
 
 ## Evidence
 
