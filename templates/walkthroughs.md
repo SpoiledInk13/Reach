@@ -17,6 +17,18 @@ history is the record, and a completed-work roll is how a document that should s
     Delete these comments when you write real entries.
 -->
 
+**A walkthrough is named by what it is, never by its number or its place in the list.** Confirming one
+deletes it and the rest move up, so `walkthrough 3` and *the first walkthrough* both come to mean a
+different entry, with nothing anywhere that would say so. Measured once: confirming a single entry left
+six references across three documents pointing at things that no longer existed, and the commit that
+deleted it noted they were going stale and left them — two more were written against the moved number
+before anyone came back. Name an entry by its sentence — *the fireplace from a cold start* walkthrough —
+or by what it does, as *the first walkthrough that runs a game* does, which identifies itself however the
+list moves. **The top walkthrough** is the one position that may be used as a handle, because it is
+defined as whichever is first. **A confirmed walkthrough is named at no handle at all**: what it brought
+is shipped, so the sentence to write is about the thing rather than about the entry that delivered it.
+`WalkthroughReferences` holds all three to the live entries.
+
 ## 1. <the sentence>
 
 **Needs:** `unit-one` `unit-two`

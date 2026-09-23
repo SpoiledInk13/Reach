@@ -361,6 +361,7 @@ your own. Adding a check never edits the driver.
 | `DocLinks` | a maintained document links to something that no longer exists |
 | `AdoptionCounts` | a recorded line count stops matching its file, so a stalled adoption stays visible |
 | `TriageLines` | a walkthrough's arrow line disagrees with the row it names — calling a built row owed, which parks a ready step, or naming an owed row without the mark, which sends the lane at work that is not there |
+| `WalkthroughReferences` | a document names a walkthrough by number or by position, both of which move when a confirmed entry is deleted, or by a sentence the list no longer states |
 | `PrimaryIsStale` | the primary checkout is behind the integration branch, so its documents are not the ones the next reader sees |
 
 ```shell

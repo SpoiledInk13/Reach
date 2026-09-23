@@ -94,6 +94,10 @@ function New-Fixture {
 | Name | Proves |
 |---|---|
 | `sprocket-meshes` | a sprocket meshes |
+
+**Waiting:** the *a widget turns* walkthrough needs this, as the top walkthrough does, and the first
+walkthrough that runs a game brings the rest. Every handle WalkthroughReferences allows is in that
+sentence, so the baseline going green is that check's positive control.
 '@
     Write-File 'Tests/WidgetTests.cs' "// scenario: widget-spins`nvoid Test() { }`n"
     Write-File 'Docs/process/WALKTHROUGHS.md' (@'
@@ -212,6 +216,22 @@ $controls = @(
                  Write-File 'Docs/systems/widget.md' ((Get-Content -LiteralPath (Join-Path $Fixture 'Docs/systems/widget.md') -Raw) -replace '\| `widget-spins` \|', '| `widget-spins` | *(owed)*')
                  Write-File 'Tests/WidgetTests.cs' "void Test() { }`n"
                  Write-File 'Docs/process/WALKTHROUGHS.md' ((Read-TextUtf8 (Join-Path $Fixture 'Docs/process/WALKTHROUGHS.md')) -replace 'The claim is `widget-spins`, built and proven\.', ('The claim it waits on is written down,' + "`r`n" + 'and it is named here: `widget-spins`, built and proven.')) } }
+
+    @{ Check = 'WalkthroughReferences'; What = 'a unit document names a walkthrough by number'
+       Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Docs/systems/widget.md') -Value 'Walkthrough 3 needs this.' }
+       Says = 'names a walkthrough as' }
+
+    @{ Check = 'WalkthroughReferences'; What = 'a unit document names one by a bare position'
+       Break = { # Hard-wrapped across the phrase, which is the shape that survived the grep written
+                 # to find these: a check reading physical lines passes this and fails the one above.
+                 Add-Content -LiteralPath (Join-Path $Fixture 'Docs/systems/widget.md') -Value ("The first" + "`r`n" + "walkthrough brings this.") }
+       Says = 'A position moves when an entry above it is confirmed' }
+
+    @{ Check = 'WalkthroughReferences'; What = 'a sentence names an entry that is not in the list'
+       Break = { # The handle that survives a renumber still has to resolve. This is the one arm that
+                 # fires the day an entry is confirmed, which is the whole reason to prefer it.
+                 Add-Content -LiteralPath (Join-Path $Fixture 'Docs/systems/widget.md') -Value 'The *a widget that never was* walkthrough needs this.' }
+       Says = 'states no entry by that sentence' }
 
     @{ Check = 'DocLinks'; What = 'a maintained document links to nothing'
        Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Docs/ARCHITECTURE.md') -Value 'See [the plan](../Docs/plan.md).' } }
