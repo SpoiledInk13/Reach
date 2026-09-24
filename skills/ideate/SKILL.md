@@ -43,6 +43,17 @@ because nothing compares prose to code. So the test is whether the built code sa
 *as it now reads* — search for the subject of every changed sentence — and where it does not, the row
 is marked in that same commit.
 
+**Whether a document is a contract is its `**Contract:**` header's to say, and nothing else's.** `none`
+means the missing part is load-bearing and the builder does not start the unit; `partial` means what is
+written is a contract and the rest arrives later; no line at all means whole. Never write it into the
+prose as well. That is where it lived on one project — four wordings across seven documents, none of
+them queryable — and four of those sentences asserted *another* unit's state and every one had gone
+false, one written two days before the unit it described flipped to `built`. If the point is why a claim
+is proven over a stand-in, the reason is a fact about content, never a claim about a peer's contract.
+`ContractIsDeclared` holds it, and holds every roster row to having a document at all: five rows had
+none while sixty-three deferrals in the other documents pointed at them, and a row with no document is
+in no backlog, so it is never built and never reported.
+
 **Nothing here is append-only, and that is the whole point.** Documents that may only grow stop being
 read, and then stop being true, in that order.
 

@@ -34,7 +34,14 @@ the unit document wants correcting — say so rather than coding around it.
 
 ## Picking work
 
-1. Read the roster. Take the earliest unit with a claim you can build, or the next unbuilt claim inside
+1. **Read each document's `**Contract:**` header before its claims.** It is the document saying whether
+   it is one. **A unit declaring `none` is not started**, however much depends on it: the missing part is
+   load-bearing, writing it is the ideate command's, and whatever waits on the unit waits on that writing
+   rather than on this command. Say so and pick the next; do not build a fragment to show progress. A unit
+   declaring `partial` is built as far as it is written, and the unwritten part is neither improvised nor
+   filed as a question — there is no claim to file one under, and the declaration is already the record
+   that it is owed.
+2. Read the roster. Take the earliest unit with a claim you can build, or the next unbuilt claim inside
    a unit already in progress. If the project has a human-verified document, what its top entry needs
    comes first: a walkthrough waiting on its units leaves that command with no work. **A dependency
    being `unbuilt` does not block a claim** — what a claim reads from a unit that does not exist yet is
@@ -44,15 +51,15 @@ the unit document wants correcting — say so rather than coding around it.
    it left fourteen of sixteen unbuilt units unreachable, three of them permanently, because they
    depended on each other in a cycle — while every one of the twenty-two already built had been built
    over stand-ins, two of them over units still unbuilt that day.
-2. **A built unit's *(owed)* claim is work like any unbuilt one**, and it holds up a dependent only
+3. **A built unit's *(owed)* claim is work like any unbuilt one**, and it holds up a dependent only
    when that dependent's own work needs it. An owed claim never makes its unit anything but `built`.
-3. If a claim cannot be built as written, file it as a question and build around it. **A unit document
+4. If a claim cannot be built as written, file it as a question and build around it. **A unit document
    is a contract; where it cannot be built against, that is a question and not something to improvise
    past.**
-4. **When a unit is finished, wholly blocked, or as far as this run takes it, commit it, land it**, and
+5. **When a unit is finished, wholly blocked, or as far as this run takes it, commit it, land it**, and
    pick again from step 1. Parking a claim blocks the claim, not the run — that is the difference
    between a run that lands one unit and a run that lands three.
-5. **A land is a green slice, never a finished unit.** What lands is whatever claims are proven and the
+6. **A land is a green slice, never a finished unit.** What lands is whatever claims are proven and the
    checks are green over; the unit keeps its state, so a slice of an unbuilt one lands `unbuilt` and the
    tests are the record of how far it got. Most units are bigger than one run and land several times:
    one of sixty claims took eight lands over two days and was `unbuilt` for seven of them. Read "finish"

@@ -5,6 +5,13 @@
 <!--
     The shape on this page is not decoration: the gate reads it.
 
+    `**Contract:** none` or `**Contract:** partial` goes on the line below `**State:**` when this
+    document is not yet a whole contract, and is left out entirely when it is. `none` means the missing
+    part is load-bearing, so the build command does not start the unit; `partial` means what is written
+    is a contract and the rest arrives later. Name what is missing on the same line. Never say it in
+    the prose as well, and never say it about another unit -- that is where it used to live, and every
+    sentence that asserted a peer's state had gone false by the time anyone read it.
+
     `**State:**` must be exactly `built` or `unbuilt`, alone on its line. Binary on purpose. A unit
     that is half implemented stays `unbuilt`, and the tests are the record of partial progress.
 
