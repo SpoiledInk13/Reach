@@ -160,7 +160,7 @@ tests.
 
 When a unit's contract is fully implemented and proven:
 
-1. Flip its `**State:**` to `built` and update the roster row in the spine.
+1. Flip its `**State:**` to `built` and update the roster row, wherever `process.json` puts it.
 2. **Delete the mechanism the code now expresses** — *how* a thing is done, which a reader can now
    read in the code. This is not optional tidying; it is the only thing keeping the documents from
    growing back. **Never delete a rule, a reason, or a constraint on a unit not yet built:** code

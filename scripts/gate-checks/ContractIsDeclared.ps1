@@ -39,11 +39,20 @@ function Test-ContractIsDeclared {
 
     # ------------------------------------------------------------------ every roster row has a document
 
-    # Only when the spine is there and its roster parses. A project that keeps its roster elsewhere
-    # gets the declaration half of this check rather than nothing, because the half that does not need
-    # the roster is the half that catches a peer's state going false.
-    if (Test-Path -LiteralPath $spinePath) {
-        $names = @([regex]::Matches((Get-Content -LiteralPath $spinePath -Raw), '(?m)^\|\s*`([a-z][a-z0-9-]*)`\s*\|') |
+    # The roster is part of the spine unless `roster` names a document of its own. Reading that field
+    # is what keeps this half of the check when a project moves the table out: it used to fall back to
+    # the declaration half alone, and a spine with no roster in it parses as a roster with no missing
+    # documents -- green, and measuring nothing.
+    #
+    # Moving it out is worth doing for a reason the caps create. A unit that outgrows its cap is two
+    # units, and a split costs a roster row; while the row lives in the spine it competes with every
+    # rule there for a line, so a project whose spine is full cannot split anything, and the document
+    # that wanted splitting cannot grow either. One project met both ceilings on the same day.
+    $roster = Get-Field $Process 'roster'
+    $rosterPath = if ($roster) { Join-Path $RepoRoot (Get-Field $roster 'path' '') } else { $spinePath }
+
+    if (Test-Path -LiteralPath $rosterPath) {
+        $names = @([regex]::Matches((Get-Content -LiteralPath $rosterPath -Raw), '(?m)^\|\s*`([a-z][a-z0-9-]*)`\s*\|') |
                    ForEach-Object { $_.Groups[1].Value })
         foreach ($name in $names) {
             if (-not (Test-Path -LiteralPath (Join-Path $unitDir "$name.md"))) {

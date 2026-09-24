@@ -83,8 +83,8 @@ One line, one table, one column, one field — and nothing else.
 | Where | What |
 |---|---|
 | the spine, under the title | `**Steward:** <handle>` |
-| the spine, before the roster | an `## Areas` table: `\| Area \| Owner \|` |
-| the spine, the roster table | an `Area` column |
+| the spine | an `## Areas` table: `\| Area \| Owner \|` |
+| the roster | an `Area` column on its table |
 | each walkthrough entry | `**Eyes:** <handle>` |
 
 The `**Steward:**` line is the switch. A spine without one is a solo project and every skill takes
@@ -125,8 +125,8 @@ walkthrough names the confirmer, which makes "git history is the record" true ra
 them twice, arriving sooner; and two lands that individually fit but jointly exceed a cap produce a
 tree that was never gated, so `-Verified` already refuses the second.
 
-**Roster conflicts stay conflicts.** One row per file would destroy the ordering, the cap, and "one
-document that outranks every other" — the three properties the roster exists for. Area ownership means
+**Roster conflicts stay conflicts.** One row per file would destroy the ordering, the cap, and the one
+place a unit's state is recorded — the three properties the roster exists for. Area ownership means
 two people are nearly always on different rows, so a conflict there means they touched the same row,
 which is the collision surfacing at the only moment it can be resolved correctly.
 

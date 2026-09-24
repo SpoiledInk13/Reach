@@ -411,6 +411,7 @@ One file at your repository root. Everything reads it.
 | Field | Means |
 |---|---|
 | `spine` | `{ path, cap }` — the one architecture document and its line cap |
+| `roster` | `{ path, cap }` — the roster of units, when it is its own document rather than part of the spine. Keep it separate: a split costs a roster row, and a row competing with the architecture for a line means a full spine blocks every split |
 | `unit` | `{ noun, dir, cap }` — what you call a unit of the system, where its documents live, their cap |
 | `evidence` | `{ noun, mark, search, files, heading }` — what proves a claim, and how it is marked |
 | `caps` | any other document → its cap |
@@ -428,6 +429,7 @@ One file at your repository root. Everything reads it.
 {
   "project": "example",
   "spine":    { "path": "Docs/ARCHITECTURE.md", "cap": 600 },
+  "roster":   { "path": "Docs/roster.md", "cap": 80 },
   "unit":     { "noun": "system", "dir": "Docs/systems", "cap": 500 },
   "evidence": { "noun": "scenario", "mark": "// scenario:", "search": ["Tests"] },
   "archive":  "Reference",

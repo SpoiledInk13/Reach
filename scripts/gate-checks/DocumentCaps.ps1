@@ -51,6 +51,26 @@ function Test-DocumentCaps {
         }
     }
 
+    # Only when it is its own document. The roster grows by a row per unit and by nothing else, so
+    # its cap is what bounds how many units there are -- the job the spine's cap did by accident while
+    # the table lived there, and did badly, because a rule added to the spine spent the same lines.
+    $roster = Get-Field $Process 'roster'
+    if ($roster) {
+        $relative = Get-Field $roster 'path' ''
+        $path = Join-Path $RepoRoot $relative
+        $cap = [int](Get-Field $roster 'cap' 0)
+        if ($relative -and (Test-Path -LiteralPath $path)) {
+            $checked++
+            $lines = Get-LineCount $path
+            if ($cap -le 0) {
+                Add-Failure (& $unsetCap $relative $lines)
+            }
+            elseif ($lines -gt $cap) {
+                Add-Failure ("{0} is {1} lines, cap {2}. Split it or cut it; raising a cap is a conversation, not an edit." -f $relative, $lines, $cap)
+            }
+        }
+    }
+
     $unit = Get-Field $Process 'unit'
     $unitRel = Get-Field $unit 'dir' 'Docs/systems'
     $unitDir = Join-Path $RepoRoot $unitRel

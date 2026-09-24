@@ -42,14 +42,10 @@ someone who cannot see why it was there.
 
 ## Roster
 
-| Unit | State | Depends on |
-|---|---|---|
-| `example` | unbuilt | — |
+Every unit, its state and what it depends on, is in the roster `process.json` names.
 
 <!--
-    The roster is the backlog. There is no ledger, no queue, no issue tracker mirror: the `unbuilt`
-    rows ARE the work, and re-reading them is what grooms it.
-
-    Order matters -- roughly, foundations first. The build command takes the earliest unit whose
-    dependencies are all built.
+    The roster is a table that grows by a row per unit, so it is its own capped document rather than
+    a section here: a unit that outgrows its cap is split in two, a split costs a roster row, and
+    while the row competes with the architecture for a line a full spine blocks every split.
 -->

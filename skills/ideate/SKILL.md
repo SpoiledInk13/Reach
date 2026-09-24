@@ -16,13 +16,21 @@ Read `process.json` first: it names the spine, the unit documents, the caps, and
 
 | Document | Holds |
 |---|---|
-| the **spine** (`spine.path`) | the architecture, the cross-cutting rules, and the roster of units |
+| the **spine** (`spine.path`) | the architecture and the cross-cutting rules |
+| the **roster** (`roster.path`, if the project has one) | every unit, what it owns, and whether it is built |
 | **unit documents** (`unit.dir`) | one unit each: its contract, its claims, its evidence, `built` or `unbuilt` |
 | the **human document**, if the project has one | ordered walkthroughs only a person can verify |
 
 Caps are enforced by the gate. **You may split, you may not raise.** A unit that outgrows its cap is
 two units, and a split costs a roster row in a document that is itself capped — which is what bounds
 the document count too. Raising a cap is a conversation with a stated reason, never an edit.
+
+**Keep the roster out of the spine.** While the table lives there, a split competes for a line with
+every rule in the architecture, so a project whose spine is full cannot split anything — and the unit
+that wanted splitting cannot grow either. One project met both ceilings on the same day and neither
+could move; nothing reported it, because a gate passes a document sitting exactly on its cap and no
+check looks at headroom. Give the roster `roster: { path, cap }` of its own, sized for a split of every
+unit still unbuilt.
 
 ## How to write in them
 

@@ -56,6 +56,7 @@ function New-Fixture {
 {
   "project": "fixture",
   "spine":    { "path": "Docs/ARCHITECTURE.md", "cap": 20 },
+  "roster":   { "path": "Docs/roster.md", "cap": 10 },
   "unit":     { "noun": "system", "dir": "Docs/systems", "cap": 30 },
   "evidence": { "noun": "scenario", "mark": "// scenario:", "search": ["Tests"] },
   "human":    { "doc": "Docs/process/WALKTHROUGHS.md", "noun": "walkthrough" },
@@ -65,6 +66,14 @@ function New-Fixture {
 }
 '@
     Write-File 'Docs/ARCHITECTURE.md' "# Spine`n`nThe frame.`n"
+    Write-File 'Docs/roster.md' @'
+# Roster
+
+| Unit | What it owns | State |
+|---|---|---|
+| `widget` | spinning | built |
+| `sprocket` | meshing | unbuilt |
+'@
     Write-File 'Docs/systems/widget.md' @'
 # widget
 
@@ -151,6 +160,17 @@ $controls = @(
     @{ Check = 'DocumentCaps'; What = 'a cap was never set, and is not reported as a document to split'
        Says  = 'no cap is set'
        Break = { Write-File 'process.json' ((Get-Content -LiteralPath (Join-Path $Fixture 'process.json') -Raw) -replace '"cap": 20', '"cap": 0') } }
+
+    @{ Check = 'DocumentCaps'; What = 'the roster outgrows its cap'
+       Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Docs/roster.md') -Value (1..20 | ForEach-Object { "| ``unit$_`` | padding | unbuilt |" }) } }
+
+    # Both halves of the move. The row is added to the roster document and NOT to the spine, so a
+    # check still reading the spine sees nothing and stays green -- which is the silent failure the
+    # `roster` field exists to prevent, and the reason this control names the roster rather than
+    # simply naming a unit with no document.
+    @{ Check = 'ContractIsDeclared'; What = 'the roster names a unit with no document'
+       Says  = 'gizmo'
+       Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Docs/roster.md') -Value '| `gizmo` | whirring | unbuilt |' } }
 
     @{ Check = 'ArchiveImmutable'; What = 'the archive is edited'
        Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Reference/old.md') -Value 'tidied' } }

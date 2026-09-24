@@ -121,6 +121,7 @@ documents, and that contract lives nowhere else:
 | Template | Becomes |
 |---|---|
 | `templates/process.json` | `process.json` — every field something reads |
+| `templates/roster.md` | the roster `roster.path` names, kept out of the spine so a split never competes with the architecture for a line |
 | `templates/spine.md` | the architecture document |
 | `templates/unit.md` | the first unit document, and the pattern for the rest |
 | `templates/walkthroughs.md` | the walkthrough list, if anything here needs a person to judge it |
