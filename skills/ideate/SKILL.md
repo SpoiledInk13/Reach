@@ -126,6 +126,24 @@ invisible to the opening pass and to every sync after it, because a sync brings 
 anything announcing it. A closing grep costs a second, and it is the only thing standing between a
 filed question and a whole cycle of the builder parking on it again.
 
+**And report the gaps nobody filed.** The inbox is what another command knew it was asking, and the
+gaps that cost most are the ones nobody can file: a document at its cap cannot be written in, so the
+command needing the room stops rather than files a line. `Measure-Gaps.ps1` is what sees those. Run it
+in the opening pass and say what it found, because it reaches the owner nowhere else — the gate passes
+a document sitting exactly on its cap and no check looks at headroom. On the project this was earned
+on, it would have found the spine and a unit document each at their own cap and deadlocking each
+other, since the remedy for a unit at its cap is to split it, a split costs a roster row, and the
+roster was in the document that was also full. A third — one lane's only inbox — had sat at exactly
+its cap for nine consecutive lands, so that lane could not file the question that would have said so.
+
+**Read the state column as a tie-breaker, never as the backlog.** The same run reports what is proven
+against what each unit claims. Five units reading `unbuilt` were 82% proven or better, two at 100%,
+held back by a `**Contract:**` still owing a read rather than by any code — which makes them this
+command's work and not the builder's. It also reports the `*(owed)*` rows on units reading `built`,
+which are a backlog no `Open:` line ever mentions. **A full document is usually holding a rule another
+document owns**, so look for the second record before cutting anything true: two documents came back
+under their caps by deleting rules already written down elsewhere, losing nothing.
+
 **Only this command answers one.** Answer it by **rewriting the claim**, and delete the `Open:` line
 in the same commit. An answer written beneath the question is an append, and the next reader sees a
 question with commentary rather than a contract.

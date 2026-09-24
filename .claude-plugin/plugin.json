@@ -1,7 +1,7 @@
 {
   "name": "reach",
   "displayName": "Reach",
-  "version": "0.11.7",
+  "version": "0.11.8",
   "description": "A process for building with coding agents: work split by who verifies it, documents that are capped so they get deleted from, and guards that have all been watched to fail.",
   "author": {
     "name": "Amelia Bleeker"
