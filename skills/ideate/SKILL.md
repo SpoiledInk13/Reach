@@ -73,6 +73,18 @@ is proven over a stand-in, the reason is a fact about content, never a claim abo
 none while sixty-three deferrals in the other documents pointed at them, and a row with no document is
 in no backlog, so it is never built and never reported.
 
+**This command takes a flip only when its answer was a sentence.** The builder proves every row and then
+leaves the flip where the last blocker is this command’s — a question it may not answer, a reading it may
+not take — and the flip then belongs in the commit that clears it. The test is whether satisfying the
+answer needs code. On one project it did: the question was answered by declaring four fields as merely
+*provided* rather than run on, and that declaration lives on the field in code rather than in prose, so
+the flip waited on the builder writing it and proving it. **A green check cannot tell you which case you
+are in**, because what a wrong flip breaks is the verification this command does not run — the builder had
+measured that exact test red and said so in its report, and the cheap checks passed over the flip anyway.
+So read what the builder measured rather than what your own checks say, and ask whether the answer is a
+sentence or a declaration in code. A flip landed on the second leaves the trunk broken for the run that
+has to undo it.
+
 **Nothing here is append-only, and that is the whole point.** Documents that may only grow stop being
 read, and then stop being true, in that order.
 
