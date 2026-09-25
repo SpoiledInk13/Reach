@@ -56,9 +56,9 @@ the unit document wants correcting — say so rather than coding around it.
 4. If a claim cannot be built as written, file it as a question and build around it. **A unit document
    is a contract; where it cannot be built against, that is a question and not something to improvise
    past.**
-5. **When a unit is finished, wholly blocked, or as far as this run takes it, commit it, land it**, and
-   pick again from step 1. Parking a claim blocks the claim, not the run — that is the difference
-   between a run that lands one unit and a run that lands three.
+5. **When a unit is finished, wholly blocked, or as far as this run takes it, commit it and pick again
+   from step 1** — up to three units, then run every tier once over the tip and land the batch.
+   Parking a claim blocks the claim, not the run.
 6. **A land is a green slice, never a finished unit.** What lands is whatever claims are proven and the
    checks are green over; the unit keeps its state, so a slice of an unbuilt one lands `unbuilt` and the
    tests are the record of how far it got. Most units are bigger than one run and land several times:
@@ -146,6 +146,13 @@ pwsh Scripts/reach.ps1 all
 A tier that could not run is not a tier that passed. Say so plainly; a green summary covering less
 than yesterday is worse than a red one.
 
+**Run the subset while you work and the whole set at the land**, where the runner can name one. The slow
+tier is usually the one that boots the project, so running only the evidence you are writing costs minutes
+against tens of minutes. It never stands in for the land's run: checks in one run share state a subset
+never reaches, so the defect that is green alone and red together is invisible to it. And **a partial run
+records nothing a whole run would** — a per-check baseline taken over a subset is taken against a
+different set, so recording it disarms the guard by the way the tier is most often run.
+
 **Write the evidence before or with the code, never after.** Evidence written afterwards certifies
 what you built rather than what was wanted, and the tell is that it reads like a description of the
 implementation.
@@ -183,10 +190,23 @@ does not owe, keeps *(owed)* on one already proven, or carries an `Open:` line w
 One commit per unit. Check `git diff --cached` before committing — a pathspec on `git add` does not
 scope the commit — and put the message in a file rather than inline.
 
-**One land per unit, too: land each before starting the next, rather than banking a run's worth.** A
-land carrying three units cannot give back one of them, and that is the ceiling on a long run, not its
-line count. Landing as you go also keeps each merge small, so the shared branch moving under you costs
-one unit's reconciliation instead of the whole run's.
+**A land carries up to three units, verified once.** The whole check set runs before every land, and
+where that costs tens of minutes, landing one unit at a time spends most of a day re-proving a set that
+had not changed. Build up to three — **independent ones wherever the backlog allows it**, which is what
+makes a red locatable — each its own commit, then run every tier once over the tip and land the three
+as **one merge**. The subset run gives per-unit feedback in the meantime, so the whole run confirms
+rather than measures for the first time.
+
+**Three, not more.** The saving is `1 − 1/k`: three captures two thirds of everything batching could
+ever give, five captures four fifths, and what grows with the batch is the cost of a red — more
+candidates to localize, and a longer gap in which the shared branch moves under you, which brings the
+re-run over the combined delta.
+
+**The batch is one land because it is one verification.** Reverting the merge gives back all three, and
+that is paid on purpose: they were only ever proven together, so reverting one would leave the shared
+branch on a tree nothing measured and would need re-proving anyway — and three merges off one run
+would make two of them claim a verification that never ran. The history stays a list of lands; a land
+is now up to three units.
 
 **Work that outlives the run is committed too, on the branch the run works on — never on a branch of
 its own.** Some units cannot land in pieces and take longer than one run, and the branch the run works

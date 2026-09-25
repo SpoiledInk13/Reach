@@ -300,7 +300,9 @@ next conversation re-derives what this one already decided.
 
 **Land each answer as it settles, not the conversation's worth at the end.** One decision per land,
 however many documents it touches, so that the history reads as a list of decisions and one can be
-reverted without taking the others with it.
+reverted without taking the others with it. The builder batches its lands and this command does not,
+because a batch trades that granularity for one verification covering the lot — and this command runs
+no checks, so it has nothing to trade.
 
 Land when the decision is settled and the tree is clean: the claim rewritten whole, its `Open:` gone
 with it, any evidence it now owes marked, the gate green. Do not land a document mid-rewrite, a claim
