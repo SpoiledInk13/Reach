@@ -96,7 +96,7 @@ step is the one that saves the conversation; the gate only saves the branch.
 Other commands hand back what they cannot do as an `**Open:**` line under the thing it blocks. So:
 
 ```shell
-grep -rnE '\*\*(Open|Not working):\*\*' <unit.dir> <the human document>
+grep -rnE '\*\*(Open|Not working|Confirmed):\*\*' <unit.dir> <the human document>
 ```
 
 Unanchored, because the line is a **bullet**: a question sits under the claim it blocks as
@@ -110,7 +110,7 @@ unit does, which may be days. Nothing announces it, and the grep above answers "
 question that exists with a lane parked on it.
 
 ```shell
-git diff <integration>...<lane> -- <unit.dir> <the human document> | grep -E '^\+.*\*\*(Open|Not working):\*\*'
+git diff <integration>...<lane> -- <unit.dir> <the human document> | grep -E '^\+.*\*\*(Open|Not working|Confirmed):\*\*'
 ```
 
 **What the lane added**, never a grep of the branch. A lane runs behind integration, so a grep of one
@@ -183,10 +183,26 @@ which is usually already written down, and add a `→` line under their words na
   `→` line says so.
 
 **Never delete a `Not working:` line, and never restate it smaller.** It is the owner's verdict, and
-only the owner's confirmation retires it — unlike an `Open:` line, which goes with the claim that
-answers it. Deleting one because the claim behind it is now written closes a step the owner has not
-seen work, which is the one thing a walkthrough exists to prevent. The words are theirs; the `→` line
-goes under them rather than through them.
+only a `Confirmed:` line retires it, going with the walkthrough when this command closes one — unlike
+an `Open:` line, which goes with the claim that answers it. Deleting one because the claim behind it is
+now written closes a step the owner has not seen work, which is the one thing a walkthrough exists to
+prevent. The words are theirs; the `→` line goes under them rather than through them.
+
+**A `Confirmed:` line is the owner's word that a step works, and draining it is this command's.** It
+holds under the same rules as a verdict — never edited, never restated, never shortened — and it
+retires only what it names, so a walkthrough three steps confirmed of four stands with the fourth.
+Drain one by asking a single question: **did the owner's word settle something a document should
+own?** A `→` line under it says what was written and where, or that it settled nothing, and without one
+the next run re-derives what this one decided. One project's confirmation that some guide lines were
+right to hide settled which of two views may draw a trajectory at all — a rule no document held, and
+one the look lane would have gone on being free to reverse.
+
+**A walkthrough is deleted here, and by nothing else**, in the commit that drains its last
+confirmation — which is why the look lane no longer deletes one. A confirmation is the only record
+that the owner has seen a thing work, and the act that acknowledged it used to be the act that
+destroyed it. Nothing waits on the closing: the active walkthrough is the first **not wholly
+confirmed**, so a confirmed one is already out of both lanes' way and closing it is tidying rather
+than unblocking.
 
 **A `→` line is refreshed in the commit that drains what it names.** It is not a note about the past,
 it is what the milestone command reads to learn what a step waits on, so a line left behind after the

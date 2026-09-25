@@ -5,7 +5,7 @@ description: Build the layer only a person can verify — how the software looks
 # Milestone
 
 Takes the top walkthrough from the project's human-verified document, builds the presentation it
-needs, hands the owner a real build, and deletes the walkthrough when they confirm it.
+needs, hands the owner a real build, and records what they confirm of it.
 
 It owns the presentation layer — `process.json`'s `human.layer`: the look, and the code that draws it.
 
@@ -44,7 +44,7 @@ what catches that.
 ## What it reads
 
 The human-verified document — an ordered list, capped. The top entry is the active one. There is no
-roadmap and no archive: a verified walkthrough is **deleted**, not moved.
+roadmap and no archive: a confirmed walkthrough is **deleted** by the ideate command, not moved. **The active walkthrough is the first not wholly confirmed**, so one waiting to be closed is never what this lane is working on.
 
 Also the documents of the units the entry needs, and the spine. They say what exists and what it does;
 this command decides only how it presents, directed by whatever mockups or direction the owner has
@@ -171,13 +171,20 @@ repeats a fault without saying so is what makes this command read as ignoring th
 
 ## Closing one
 
-Only on the owner's confirmation, for the walkthrough as stated, and only when it carries no `Open:`
-or `Not working:` line:
+**Record the owner's confirmation; never delete the walkthrough.** What they say of a build goes under
+it as a `**Confirmed:**` line, in their words, exactly as a `Not working:` line does — never edited,
+never restated, never shortened. It retires only what it names, so confirming three steps of four
+leaves the walkthrough standing with the fourth and this lane carries on with that one.
 
-1. **Delete it from the document.** No archive, no retrospective, no completed-history roll. Git
-   history is the record.
-2. Nothing else changes. A design detail the shipped look now expresses is the ideate command's to
-   delete.
+**Deleting it is the ideate command's**, in the commit that drains the last confirmation. A
+confirmation can settle a rule no document holds — one project's *those guides are right to hide*
+settled which of two views may draw a trajectory at all — and deleting the walkthrough here would
+destroy that before anyone had read it. Writing the final `Confirmed:` line is this lane's last act on
+one, and nothing waits on the closing: a wholly confirmed walkthrough is no longer the active one, so
+the next is already this lane's.
+
+Nothing else changes. A design detail the shipped look now expresses is the ideate command's to
+delete, and a rule a confirmation settled is its to write.
 
 ## Committing
 
