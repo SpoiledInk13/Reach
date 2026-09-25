@@ -41,6 +41,17 @@ Present tense, and only what is true or deliberately intended. The roster's stat
 place unbuilt work is recorded — there is no backlog ledger, because the `unbuilt` entries *are* the
 backlog.
 
+**Deleting a proven claim deletes the evidence that proved it, in the same commit.** A claim's row and
+the test naming that row are one fact, and a check that holds them together holds them in both
+directions — so a document that drops a proven row cannot land on its own, because the check reds on
+evidence whose row is gone and there is no state to park it in. This command writing no product code is
+not an exception here: the test is the row's other half. What stays for the builder is the production
+code the claim described, which has real verification to run against it. **Check first that the test's
+helpers are confined to what you are cutting**, searching each one over the rest of the file and the
+tree, because this command runs no verification and would not see the build it broke. On one project a
+single answered question deleted two rows built and proven the day before, and 251 lines of test with
+them; the alternative was a document that could not be landed at all.
+
 **A claim added to a unit that is already `built` carries its evidence row in the same commit, marked
 *(owed)*.** The unit stays `built`. Never flip one back for a new claim: doing that stops every unit
 that depends on it, none of which use the claim you just added. The mark is what keeps the claim from
