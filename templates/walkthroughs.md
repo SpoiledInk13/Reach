@@ -31,7 +31,11 @@ is shipped, so the sentence to write is about the thing rather than about the en
 
 ## 1. <the sentence>
 
-**Needs:** `unit-one` `unit-two`
+**Needs:** `row-one` `row-two` — the evidence rows this walkthrough actually runs on, never a unit.
+A unit is a verdict about every claim it holds, so asking for one parks the lane behind work these
+steps never touch. One project’s top walkthrough asked for a whole unit; the three rows it went on to
+name by hand were all proven, and the one row still missing — which none of its steps reached — waited
+on a unit nobody had started. Naming the unit would have held a ready walkthrough behind an unbuilt one.
 
 **Open:** what is missing and the fact that shows it — the unit, the claim, a file and line. No
 options and no recommendation. It sits here rather than under a unit's claim because a built unit
