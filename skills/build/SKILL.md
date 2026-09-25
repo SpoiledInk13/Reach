@@ -153,6 +153,12 @@ never reaches, so the defect that is green alone and red together is invisible t
 records nothing a whole run would** — a per-check baseline taken over a subset is taken against a
 different set, so recording it disarms the guard by the way the tier is most often run.
 
+**Record what the slow tier costs and how long the harness had been up**, appended rather than replaced,
+wherever a run reuses a warm process. How often that tier runs is what decides whether its cost is worth
+paying, and a set getting slower reads the same whether the set grew or the process did — a warm harness
+grows with the work it has done, not with the clock, so a restart on a schedule restarts an idle one and
+misses a busy one. Two runs at different ages tell those apart; one number never can.
+
 **Write the evidence before or with the code, never after.** Evidence written afterwards certifies
 what you built rather than what was wanted, and the tell is that it reads like a description of the
 implementation.
