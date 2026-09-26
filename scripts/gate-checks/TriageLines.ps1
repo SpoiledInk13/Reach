@@ -50,14 +50,22 @@ function Test-TriageLines {
 
     # ------------------------------------------------------------------ and what the lines say of them
 
-    # A triage line is a block: it opens with the arrow and runs to the next blank line, so a row
-    # named on its fourth physical line belongs to it. Reading physical lines finds only the names
-    # that happen to sit beside the arrow, which is most of them and never the ones that matter --
-    # a control that moved a name onto a continuation line passed over exactly that mistake.
+    # A triage line is a block: it opens with the arrow and runs to the next blank line or the next
+    # arrow, so a row named on its fourth physical line belongs to it. Reading physical lines finds only
+    # the names that happen to sit beside the arrow, which is most of them and never the ones that matter
+    # -- a control that moved a name onto a continuation line passed over exactly that mistake.
+    # A block ends where the next one opens, and not at a blank line alone: closing on the blank only let
+    # an opening arrow overwrite the block being built, so a block another arrow follows was gathered and
+    # then dropped, checked nowhere, while every failure message named the check that had just skipped it.
+    # One entry's first block was that shape and a row was drained under a green gate with the line still
+    # calling it owed.
     $blocks = @()
     $current = $null
     foreach ($line in (Read-TextUtf8 $doc) -split "`r?`n") {
-        if ($line -match "^\s*$([char]0x2192)") { $current = $line; continue }
+        if ($line -match "^\s*$([char]0x2192)") {
+            if ($null -ne $current) { $blocks += $current }
+            $current = $line; continue
+        }
         if ($null -eq $current) { continue }
         if ($line.Trim().Length -eq 0) { $blocks += $current; $current = $null; continue }
         $current = $current + ' ' + $line

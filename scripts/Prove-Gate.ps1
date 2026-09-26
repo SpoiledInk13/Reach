@@ -237,6 +237,16 @@ $controls = @(
                  Write-File 'Tests/WidgetTests.cs' "void Test() { }`n"
                  Write-File 'Docs/process/WALKTHROUGHS.md' ((Read-TextUtf8 (Join-Path $Fixture 'Docs/process/WALKTHROUGHS.md')) -replace 'The claim is `widget-spins`, built and proven\.', ('The claim it waits on is written down,' + "`r`n" + 'and it is named here: `widget-spins`, built and proven.')) } }
 
+    @{ Check = 'TriageLines'; What = 'a triage line names an owed row in a block another arrow follows'
+       Break = { # The same miss a third time, with a second arrow opening straight after the first block.
+                 # A gatherer closing a block on a blank line alone lets the opener overwrite the block it
+                 # was building, so that block is gathered and then dropped -- read nowhere, while every
+                 # message names the check that had just skipped it. It shipped that way and a row was
+                 # drained under a green gate with the line still calling it owed.
+                 Write-File 'Docs/systems/widget.md' ((Get-Content -LiteralPath (Join-Path $Fixture 'Docs/systems/widget.md') -Raw) -replace '\| `widget-spins` \|', '| `widget-spins` | *(owed)*')
+                 Write-File 'Tests/WidgetTests.cs' "void Test() { }`n"
+                 Write-File 'Docs/process/WALKTHROUGHS.md' ((Read-TextUtf8 (Join-Path $Fixture 'Docs/process/WALKTHROUGHS.md')).TrimEnd() + "`r`n" + [char]0x2192 + " And the look of it is the second half, which is this command's own.`r`n") } }
+
     @{ Check = 'WalkthroughReferences'; What = 'a unit document names a walkthrough by number'
        Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Docs/systems/widget.md') -Value 'Walkthrough 3 needs this.' }
        Says = 'names a walkthrough as' }
