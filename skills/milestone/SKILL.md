@@ -110,12 +110,25 @@ recommendation.** It goes under the walkthrough rather than under a unit's claim
 unit cannot carry an `Open:` line, and because answering one means writing the missing claim, which
 returns the work to the build command's backlog.
 
-**A finding with no obvious home is still an `Open:` line, never a heading of your own.** The inbox
-matches a closed set of markers, so a new bold lead-in — however apt it reads — files into nothing and
-no grep will ever surface it. One run wrote a measured performance regression under an invented
-heading; it survived the opening pass, every sync and the closing grep, and its only other copy was a
-scratch file the next reset would have deleted. A finding that seems to belong nowhere is exactly the
-one worth filing, because nothing else records it.
+**A finding with no obvious home is still an `Open:` line, never a heading of your own** — provided it
+is a question. The inbox matches a closed set of markers, so a new bold lead-in — however apt it reads
+— files into nothing and no grep will ever surface it. One run wrote a measured performance regression
+under an invented heading; it survived the opening pass, every sync and the closing grep, and its only
+other copy was a scratch file the next reset would have deleted. The lesson is that the invented kind
+was wrong, not that the numbers belonged in the inbox.
+
+**A measurement is not a question, so a reading is not filed at all.** The design command is the only
+one that answers an `Open:` line and it cannot answer a number: a reading either says nothing worth
+acting on, or it says something is wrong, and finding out what is work rather than a question. Either
+way the disposition is this lane's, **and it is taken before you land**, because a reading rests on an
+instrument's state — a recorded baseline, a warm process, a scratch log — and none of that survives the
+land, so one that lands undisposed of can be diagnosed afterwards by nobody. Several readings flagging
+at once are one cause and not each one's own, and a measure normalized against a set is blind to a rise
+confined to part of that set, so how many flagged is a reading in itself. Seven landed as `Open:` lines
+on one walkthrough under a wording this paragraph used to carry, each with its figures to ten places;
+they asked nothing any command could answer, their baselines were gone, and what they found had to be
+re-measured from nothing. A run report belongs in the commit message and this lane's own record — the
+walkthrough document is not a log.
 
 Then carry on with any part of the walkthrough that does not depend on it. When nothing left can be
 built without an answer, land what was built, with the blockers, and stop. **The document is the only
