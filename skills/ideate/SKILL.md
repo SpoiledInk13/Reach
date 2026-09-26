@@ -243,6 +243,17 @@ the next run re-derives what this one decided. One project's confirmation that s
 right to hide settled which of two views may draw a trajectory at all — a rule no document held, and
 one the look lane would have gone on being free to reverse.
 
+**A retirement names the verdict by its subject, never by its position.** The look lane files a new verdict
+directly under the confirmation it has just written, in the same commit, so *the verdict below* means a
+different one by the time this command reads it. Measured once: an arrow retired the newly filed verdict
+instead of the one whose two halves the owner's words answer one for one — so a verdict that stood read as
+retired, the answered one read as standing, and the walkthrough's last remaining piece of work, an owed row,
+read as nobody's. That is what makes the walkthrough read as waiting on the owner when it is waiting on a
+lane, which is the one question this command is asked to answer about it. A verdict is named by what it is
+about, in both directions — an arrow pointing back at the confirmation names the behaviour too — and a
+confirmation retiring several names each. It is the same rule that already forbids naming a walkthrough by
+its place in the list, and for the same reason: the list moves.
+
 **A walkthrough is deleted here, and by nothing else**, in the commit that drains its last
 confirmation — which is why the look lane no longer deletes one. A confirmation is the only record
 that the owner has seen a thing work, and the act that acknowledged it used to be the act that
