@@ -102,6 +102,12 @@ that forces it — a file and line, a measured number, the claim or spine sectio
 **No options and no recommendation.** A question from a run that parked rather than dug is a
 hypothesis, and its proposed fix goes stale faster than its problem.
 
+**A finding with no obvious home is still an `Open:` line, never a heading of your own.** The inbox
+matches a closed set of markers, so a new bold lead-in files into nothing however apt it reads. Where a
+measurement is the finding — something got slower, something got larger — **carry the numbers into the
+line** rather than a path to them: the file they were read from is usually untracked and per lane, and
+does not survive the lane.
+
 A `built` unit may hold one only under a claim it owes; a question raised by a proven claim goes under
 the unbuilt claim it blocks.
 

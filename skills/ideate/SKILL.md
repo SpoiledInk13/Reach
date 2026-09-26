@@ -149,6 +149,29 @@ invisible to the opening pass and to every sync after it, because a sync brings 
 anything announcing it. A closing grep costs a second, and it is the only thing standing between a
 filed question and a whole cycle of the builder parking on it again.
 
+**The line kinds are a closed set, and a lane that invents one has filed into nothing.** Both greps
+above match three names — and the lane diff filters on those same three, so an invented kind is
+invisible in the branch read as well as the tree read. A lane holding a finding with no defined place
+for it does not drop the finding: it reaches for a new bold lead-in. One wrote a run report under a
+heading of its own and buried a real, measured performance regression inside it, which then went past
+the opening pass, every sync, and the closing grep of the very run that was reading for exactly that
+kind of thing. Its only other copy was a scratch file the lane's own next reset would delete. **So the
+kind that goes missing is the one carrying what no document owns**, which is the valuable kind, and it
+is a second reason a land is read as *what it added* rather than only re-greped. Once a pass, list the
+kinds actually in use rather than the ones you expect:
+
+```shell
+grep -rhoE '\*\*[A-Z][A-Za-z ]+:\*\*' <unit.dir> <the human document> | sort | uniq -c | sort -rn
+```
+
+An unknown kind then stands beside the known ones. Two kinds of false alarm are worth expecting: a
+status convention some lane legitimately declares in its own document, and the three real markers
+counting high because the process documents **quote** them while describing them — four `Open:`
+occurrences against one live question, measured. Check each surplus hit before calling it a missed
+question. Dispose of a real one by moving the finding to a line a grep reads and deleting the invented
+kind in the same commit: **a lane's own words are not the owner's**, so unlike a `Not working:` line
+they may be rewritten freely.
+
 **And report the gaps nobody filed.** The inbox is what another command knew it was asking, and the
 gaps that cost most are the ones nobody can file: a document at its cap cannot be written in, so the
 command needing the room stops rather than files a line. `Measure-Gaps.ps1` is what sees those. Run it

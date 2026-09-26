@@ -110,6 +110,13 @@ recommendation.** It goes under the walkthrough rather than under a unit's claim
 unit cannot carry an `Open:` line, and because answering one means writing the missing claim, which
 returns the work to the build command's backlog.
 
+**A finding with no obvious home is still an `Open:` line, never a heading of your own.** The inbox
+matches a closed set of markers, so a new bold lead-in — however apt it reads — files into nothing and
+no grep will ever surface it. One run wrote a measured performance regression under an invented
+heading; it survived the opening pass, every sync and the closing grep, and its only other copy was a
+scratch file the next reset would have deleted. A finding that seems to belong nowhere is exactly the
+one worth filing, because nothing else records it.
+
 Then carry on with any part of the walkthrough that does not depend on it. When nothing left can be
 built without an answer, land what was built, with the blockers, and stop. **The document is the only
 place a blocker goes** — never memory, never the report alone.
