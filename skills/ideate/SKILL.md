@@ -401,6 +401,13 @@ with it, any evidence it now owes marked, the gate green. Do not land a document
 still being talked through, or an edit the owner has not agreed to — an unsettled claim on the shared
 branch is worse than an unanswered one, because it reads as decided.
 
+**A land's subject marks it as this command's, and it takes a message file of its own.** Whatever form
+that mark takes, the land review's boundary is that form, so a land carrying the chunk
+commit's message instead is one the next pass reads straight past. That happened in the very commit that
+wrote the boundary rule, an hour after writing it, because reusing the chunk's file is one keystroke
+cheaper than writing a second. It fails the safe way the rule describes, moving the boundary one land
+earlier, which is why this can be a convention rather than a check.
+
 **When a chunk is done, land it without being asked.** A chunk is done when the owner agrees to what
 was proposed, when they move on to another item, when they say to continue or ship, or when the
 conversation reaches a stop condition. Moving on is the signal, whatever was said about the last item.
