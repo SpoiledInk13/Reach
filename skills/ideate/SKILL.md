@@ -20,6 +20,7 @@ Read `process.json` first: it names the spine, the unit documents, the caps, and
 | the **roster** (`roster.path`, if the project has one) | every unit, what it owns, and whether it is built |
 | **unit documents** (`unit.dir`) | one unit each: its contract, its claims, its evidence, `built` or `unbuilt` |
 | the **human document**, if the project has one | ordered walkthroughs only a person can verify |
+| the **reports document** (`reports.doc`, if the project releases) | defects found on a released build, untriaged |
 
 Caps are enforced by the gate. **You may split, you may not raise.** A unit that outgrows its cap is
 two units, and a split costs a roster row in a document that is itself capped — which is what bounds
@@ -119,7 +120,7 @@ step is the one that saves the conversation; the gate only saves the branch.
 Other commands hand back what they cannot do as an `**Open:**` line under the thing it blocks. So:
 
 ```shell
-grep -rnE '\*\*(Open|Not working|Confirmed):\*\*' <unit.dir> <the human document>
+grep -rnE '\*\*(Open|Not working|Confirmed|Reported):\*\*' <unit.dir> <the human document> <the reports document>
 ```
 
 Unanchored, because the line is a **bullet**: a question sits under the claim it blocks as
@@ -133,7 +134,7 @@ unit does, which may be days. Nothing announces it, and the grep above answers "
 question that exists with a lane parked on it.
 
 ```shell
-git diff <integration>...<lane> -- <unit.dir> <the human document> | grep -E '^\+.*\*\*(Open|Not working|Confirmed):\*\*'
+git diff <integration>...<lane> -- <unit.dir> <the human document> | grep -E '^\+.*\*\*(Open|Not working|Confirmed|Reported):\*\*'
 ```
 
 **What the lane added**, never a grep of the branch. A lane runs behind integration, so a grep of one
@@ -150,7 +151,7 @@ anything announcing it. A closing grep costs a second, and it is the only thing 
 filed question and a whole cycle of the builder parking on it again.
 
 **The line kinds are a closed set, and a lane that invents one has filed into nothing.** Both greps
-above match three names — and the lane diff filters on those same three, so an invented kind is
+above match four names — and the lane diff filters on the three a lane can file, so an invented kind is
 invisible in the branch read as well as the tree read. A lane holding a finding with no defined place
 for it does not drop the finding: it reaches for a new bold lead-in. One wrote a run report under a
 heading of its own and buried a real, measured performance regression inside it, which then went past
@@ -161,7 +162,7 @@ is a second reason a land is read as *what it added* rather than only re-greped.
 kinds actually in use rather than the ones you expect:
 
 ```shell
-grep -rhoE '\*\*[A-Z][A-Za-z ]+:\*\*' <unit.dir> <the human document> | sort | uniq -c | sort -rn
+grep -rhoE '\*\*[A-Z][A-Za-z ]+:\*\*' <unit.dir> <the human document> <the reports document> | sort | uniq -c | sort -rn
 ```
 
 An unknown kind then stands beside the known ones. Two kinds of false alarm are worth expecting: a
@@ -285,6 +286,45 @@ owner** rather than on work when every one of those arrows names something built
 those it is in a sentence, and name what it waits on when it is not. Reporting eighteen triaged verdicts
 as "eighteen `Not working:` lines" describes a backlog and was the exact opposite: all eighteen were
 built, proven, and waiting on a build nobody had been told to ask for.
+
+**A defect found on a released build is a third person's words, and it is consumed rather than kept.**
+Testers exercise the whole application — every unit released, rather than the steps of the top
+walkthrough — so most of what they hit sits under no step at all, and a confirmed walkthrough is
+deleted, so a regression in one has no anchor either. If the project releases to anybody, give it a
+reports document (`reports.doc`) and a cap: the owner transcribes a report there as one
+`**Reported:**` line in the reporter's words, carrying the commit the build was made from, and this
+command triages it in the pass that reads it. Everything is claims and evidence, so a report is one of
+four things and the triage is a lookup:
+
+- **a claim is proven and the build does it wrong anyway** — the expected shape, because a defect that
+  reached a release is one every tier ran green over. The evidence is vacuous or too narrow, so the fix
+  is **a fixture the defect shrinks**: a second row under the same claim, `*(owed)*`, while the proven
+  row stays and is not un-proven.
+- **a claim exists and is not proven** — unbuilt or `*(owed)*`. Not a defect: it is backlog the lane
+  already sees, and the report is deleted naming the row.
+- **no claim decides it** — write the claim, with its row `*(owed)*` in the same commit.
+- **it is the owner's taste rather than a defect** — a colour, a radius, a spacing, a mix level, which
+  the documents hold nowhere. That is direction, and it reaches the milestone command the way direction
+  does, on the next hand-over.
+
+**A report that reads as appearance is usually the first or the third.** *The label is cut off* is a
+claim about a control sizing to its words, and *the colour is wrong* is a claim about what a kind is
+drawn in — so push a report out of the appearance bucket before accepting it there, exactly as
+*"no padding between things and a scrollbar"* was a claim about the body leaving the bar its own room.
+
+**The lane is read off the layer the claim's code sits in, as a `→` line's is**, and both lanes read the
+unit documents as their backlog, so writing the claim *is* handing the work over. **A report never
+creates a walkthrough and never moves one**: the list is the ordered roadmap, and a defect that
+reordered it would stop whatever a lane is mid-way through for work that lane may be nowhere near.
+
+**The entry is deleted in the commit that triages it**, and it is the one place a person's words are
+consumed rather than kept. A `Not working:` line is the owner's verdict on work handed to them, the only
+proof anyone watched a thing work, so it is never edited or restated; a report is evidence, and the
+claim it produces is what the evidence was for. The commit that deletes it writes that claim, so
+`git log -S` is the trail. **Cap the document barely above its own header.** A bug list is the most
+append-prone artifact a project can own — one project's append-only record of decisions reached 1,077
+entries with nothing ever retired from it — so the cap binding means triage stalled rather than that
+the queue needs room, and a report that cannot be turned into a claim has not been reproduced.
 
 **The builder is never pointed at one of these lines.** It reads the unit documents, and a symptom in a
 person's words is not a claim it can build against. Turning one into a claim is the triage above, and
