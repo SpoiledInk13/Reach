@@ -150,6 +150,14 @@ invisible to the opening pass and to every sync after it, because a sync brings 
 anything announcing it. A closing grep costs a second, and it is the only thing standing between a
 filed question and a whole cycle of the builder parking on it again.
 
+**And the rest of the survey goes stale with it.** The gaps, the state columns and the verdict on
+whether the milestone command can act are all read off one integration branch, and a land arriving
+mid-conversation invalidates them exactly as readily as it does the grep — one arrived carrying the
+claim that answered the single question that pass had just reported as live, so the report was wrong
+before the conversation that made it had finished. So read the lands that arrived while you worked, by
+the boundary rule under **The inbox holds only what a run knew was a question**, and close by saying
+what changed rather than by repeating the opening numbers.
+
 **The line kinds are a closed set, and a lane that invents one has filed into nothing.** Both greps
 above match four names — and the lane diff filters on the three a lane can file, so an invented kind is
 invisible in the branch read as well as the tree read. A lane holding a finding with no defined place
@@ -331,7 +339,17 @@ person's words is not a claim it can build against. Turning one into a claim is 
 it is this command's.
 
 **The inbox holds only what a run knew was a question.** A call made without noticing arrives as an
-edit to a document instead, so read every land since you last looked. Anything beyond a state flip, a
+edit to a document instead, so read every land since the last pass of this command. The first-parent
+log of the integration branch **is** the list of lands, whatever they are titled, so the boundary is **a
+position in that list and never a wording**: the most recent land this command made,
+**and you read that one too**. Everything after it is a lane's, and the boundary is a pass whose own run read
+everything before it — but it may be a **peer's**, because two sessions of this command can run at once
+and a peer's land is indistinguishable from this one's by its subject. Excluding every land that reads
+as this command's is how one question was reported as live hours after a peer had landed the claim
+answering it. Reading back to a position is also what catches a **retitled** land: enumerating wordings
+hid three, two lanes having retitled theirs when they went unattended, so a grep naming the expected
+subject answered as though nothing had landed. A boundary that goes missing moves the read **earlier**,
+which costs a re-read and never a miss. Anything beyond a state flip, a
 roster row, a named gap, a removed *(owed)* mark, or a deletion is an unreviewed design decision, and
 it is answered here like any `Open:` line.
 
