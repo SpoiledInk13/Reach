@@ -325,14 +325,26 @@ unit documents as their backlog, so writing the claim *is* handing the work over
 creates a walkthrough and never moves one**: the list is the ordered roadmap, and a defect that
 reordered it would stop whatever a lane is mid-way through for work that lane may be nowhere near.
 
-**The entry is deleted in the commit that triages it**, and it is the one place a person's words are
-consumed rather than kept. A `Not working:` line is the owner's verdict on work handed to them, the only
-proof anyone watched a thing work, so it is never edited or restated; a report is evidence, and the
-claim it produces is what the evidence was for. The commit that deletes it writes that claim, so
-`git log -S` is the trail. **Cap the document barely above its own header.** A bug list is the most
-append-prone artifact a project can own — one project's append-only record of decisions reached 1,077
-entries with nothing ever retired from it — so the cap binding means triage stalled rather than that
-the queue needs room, and a report that cannot be turned into a claim has not been reproduced.
+**A symptom triaged carries a `→` line, and the entry leaves when every symptom under it has one.** One
+report is about four things as readily as one, so an entry does not leave the pass that first reads it,
+and the arrows are what say which of its symptoms are disposed of — without them a later pass re-derives
+work this one did, which is the failure the arrows already prevent on a walkthrough. They name the claim
+and the lane, are refreshed in the commit that drains what they name, and whatever guard holds a
+walkthrough's arrows to their rows holds these too.
+**Splitting an entry is not the alternative**: the sentences are the reporter's, and cutting one in half
+edits them.
+
+**The entry is deleted, not kept**, once its last symptom has an arrow, and it is the one place a
+person's words are consumed rather than kept. A `Not working:` line is the owner's verdict on work handed
+to them, the only proof anyone watched a thing work, so it is never edited or restated; a report is
+evidence, and the claims it produced are what the evidence was for, so `git log -S` is the trail.
+**Cap the document for a few reports and their arrows.** A bug list is the most append-prone artifact a
+project can own — one project's append-only record of decisions reached 1,077 entries with nothing ever
+retired from it — so the cap binding means triage stalled rather than that the queue needs room. One
+project sized that cap for an entry that leaves immediately, and had to raise it the first time a
+reporter wrote one report about four things.
+**A report that cannot be turned into a claim has not been reproduced**, and reproducing it is not that
+document's job: it stands while it is being worked on.
 
 **The builder is never pointed at one of these lines.** It reads the unit documents, and a symptom in a
 person's words is not a claim it can build against. Turning one into a claim is the triage above, and
