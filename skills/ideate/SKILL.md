@@ -250,7 +250,12 @@ which is usually already written down, and add a `→` line under their words na
   empty key — so where landing the lower half first breaks something, the presentation half leads and is
   proven over an injected control rather than over the state the other half has yet to make reachable.
   The ordering goes in the `→` line or beside the walkthrough's prerequisites, and it is the whole
-  answer: two rows with no order is the interlock written down rather than resolved.
+  answer: two rows with no order is the interlock written down rather than resolved. **And the order names
+  the command owing each row**, because that order is what the presentation command reads to learn which of
+  them it may take: leave them unnamed and it infers each one off the layer its claim's code sits in, and one
+  wrong inference stops it on the other's row — filing nothing, the blocked case being deliberately unfiled.
+  One walkthrough's order had three rows, no owner on any of them and an ordinal contradicting its own list,
+  while the row that command could have started on that day was its own.
 - **no document decides it** — rewrite the claim as for any `Open:` line, and point the `→` line at it.
 - **presentation** — a value, a layout, an asset, a mix level. It is the milestone command's, and the
   `→` line says so.
