@@ -318,6 +318,16 @@ Say which of those it is in a sentence, and name what it waits on when it is not
 as "eighteen `Not working:` lines" describes a backlog and was the exact opposite: all eighteen were
 built, proven, and waiting on a build nobody had been told to ask for.
 
+**A command waiting on its own backlog is not waiting, so which of the three it is turns on who owes the
+row rather than on how many are owed.** An unproven row an arrow names is not a block: where every one of
+them is that command's own, the walkthrough can be taken and those rows are what it starts on. Both halves
+of the test above are written down and the conclusion between them is not, which is how two readers
+composed it wrongly on the same day — a report said "waiting on work, not on the owner" for any unproven
+arrow row without reading the command it had just named beside it, and it was repeated back to the owner
+over a walkthrough whose one unproven row belonged to the command it was being reported as blocked on. A
+row naming both counts as the builder's, its engine-free half having to land before the presented half can
+be read at all.
+
 **A defect found on a released build is a third person's words, and it is consumed rather than kept.**
 Testers exercise the whole application — every unit released, rather than the steps of the top
 walkthrough — so most of what they hit sits under no step at all, and a confirmed walkthrough is
