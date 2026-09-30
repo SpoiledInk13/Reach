@@ -241,6 +241,16 @@ which is usually already written down, and add a `→` line under their words na
   Reading it the other way routed one such row to the milestone command, which parked a build run on
   a row it had already satisfied and cost the answer a whole cycle. Ask which files a lane would
   write, not which it would open.
+  **A row whose answer is "both" is two rows, ordered.** No lane may write the other's layer, so a row
+  needing presentation code *and* code below it is one neither can satisfy and both will file against.
+  Split it: one half proven over the composed state with nothing laid out, the other over the laid-out
+  one, each with its own negative control, each landing alone. **Then say which goes first, because the
+  order is not always the lower half**: composing a state the interface cannot draw yet crashes the
+  screen that reaches it — one composed value with nothing chosen threw on a text lookup that refuses an
+  empty key — so where landing the lower half first breaks something, the presentation half leads and is
+  proven over an injected control rather than over the state the other half has yet to make reachable.
+  The ordering goes in the `→` line or beside the walkthrough's prerequisites, and it is the whole
+  answer: two rows with no order is the interlock written down rather than resolved.
 - **no document decides it** — rewrite the claim as for any `Open:` line, and point the `→` line at it.
 - **presentation** — a value, a layout, an asset, a mix level. It is the milestone command's, and the
   `→` line says so.
