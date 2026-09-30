@@ -61,7 +61,15 @@ covering additions alone is how one project landed the same defect twice: two re
 built code narrower than the sentence that now described it, and both lands passed their own checks,
 because nothing compares prose to code. So the test is whether the built code satisfies the sentence
 *as it now reads* — search for the subject of every changed sentence — and where it does not, the row
-is marked in that same commit.
+is marked in that same commit. **Except where evidence already proves that row, which is the common case
+and which the mark is refused on**: the reword then either narrows the row to what its evidence really
+reads, where the stale clause was proven over nothing, or it goes to a **second row** beside the proven
+one, `*(owed)*`, leaving the first proven and not un-proven. **Read the fixture before choosing.** One
+stale clause described a case its fixture never set up — the two subjects it compared differed in a
+wholesale way, so the narrower case it named was never exercised — and cutting it lost no evidence at
+all, where another had only to narrow because its evidence did exercise what remained. Marking the
+proven row instead reds the check, which is the safe way to find this out and costs a rewrite; reading
+that refusal as *the reword was fine* is the unsafe one.
 
 **Whether a document is a contract is its `**Contract:**` header's to say, and nothing else's.** `none`
 means the missing part is load-bearing and the builder does not start the unit; `partial` means what is
