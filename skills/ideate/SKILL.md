@@ -303,6 +303,18 @@ been built, some of them days earlier. `TriageLines` holds them together now, bo
 is a thing the gate says rather than a thing to remember. **Needs** is exempt — it names rows as an
 ordering rather than a verdict.
 
+**Refreshing a `→` line is never deleting it while its verdict stands.** An arrow every one of whose
+rows is proven has nothing left to tell the lane, which reads exactly like a line to cut — and cutting
+it makes the verdict untriaged again, because the arrow is the only record that anybody ever read it:
+the verdict is never deleted until the owner confirms it, and a verdict carrying no arrow is a stalled
+walkthrough. So a drained arrow is rewritten where it now says something false and left standing where
+it only says something finished. **Read the rule above as being about what an arrow says, never about
+whether it is still owed anything**, because the pass that needs this is the one with no room: a full
+document offers up sixteen arrows naming nothing but proven rows, each looking spent, and every one of
+them is load-bearing. Room comes instead from prose a second document already owns — the human document
+was restating a lane's own rationale and the builder's ordering rule — and from a **Needs** whose
+ordering is proven through, which orders nothing.
+
 **Until that line exists the milestone command does not act on the verdict at all**, because deciding
 what a symptom is a symptom of is this triage, and it guesses badly: a report that read exactly like a
 spacing value turned out to be a claim the unit already owed about a scrollbar keeping its own room, so
