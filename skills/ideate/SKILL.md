@@ -71,6 +71,18 @@ all, where another had only to narrow because its evidence did exercise what rem
 proven row instead reds the check, which is the safe way to find this out and costs a rewrite; reading
 that refusal as *the reword was fine* is the unsafe one.
 
+**An owed row a lane is already proving is not free to widen.** The reword rules above turn on whether a
+test proves the row, and the answer they assume is the one the unit documents give — which is the trunk's,
+and a lane's test is not there yet. Widening an owed row is the cheap, correct move right up until a lane
+branched before the widening and is writing that row's test against the sentence as it read then: the flip
+it lands removes the mark from a row whose text moved under it, so the added clause reads proven over a test
+that never saw it, which is exactly the defect the second-row rule exists to prevent — arrived at from the
+other side, and invisible to the gate, to the lane and to every grep of the primary. **So before widening
+an owed row, read the lanes as what they added** and put the clause in a second row where one is proving it,
+leaving the row byte-identical to the base its test was written against so the flip still lands clean.
+Measured once: a clause added to a row at 11:00 met a lane test for the row's narrower reading, written
+against the trunk of an hour earlier.
+
 **Whether a document is a contract is its `**Contract:**` header's to say, and nothing else's.** `none`
 means the missing part is load-bearing and the builder does not start the unit; `partial` means what is
 written is a contract and the rest arrives later; no line at all means whole. Never write it into the
