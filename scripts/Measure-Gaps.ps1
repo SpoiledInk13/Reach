@@ -21,6 +21,20 @@
     them at 100%, held back by a `**Contract:**` still owing a read rather than by any code. Reading the
     roster as the backlog gets that exactly backwards.
 
+    And a unit's own declaration is not the whole of that. The builder does not start a unit whose
+    contract is `none`, so a claim running on that unit's mechanism cannot be written however proven the
+    document holding it reads -- and the unit that owes the contract is reached through the roster's
+    dependency column rather than from the first step of it. One project's four near-proven units were
+    all called buildable backlog on their own declarations and every one was blocked; the fourth
+    declared every dependency contract-whole and was reached only at the second step. That costs more
+    than reporting nothing would, because a confident wrong answer is acted on where a missing one sends
+    somebody to measure.
+
+    What the walk establishes is bounded, and the wording is held to it: it reads the dependency set and
+    not the rows left unproven, so it says such a unit cannot flip to `built` and never that the row it
+    has left is unwritable. On that same project one of the four was 16 of 17 with its last row waiting
+    on a dependency's state rather than on any contract.
+
     So it is measured rather than remembered. Nothing here fails: these are gaps to report to the owner,
     not rules to enforce, and which of them is worth acting on is a conversation.
 
@@ -173,7 +187,32 @@ if (Test-Path -LiteralPath $unitPath) {
             Name = $doc.BaseName; State = $state; Contract = $contract
             Proven = $ok; Total = $names.Count
             Owed = ([regex]::Matches($text, '\*\(owed\)\*')).Count
+            DependsOn = New-Object System.Collections.Generic.HashSet[string]
         }) | Out-Null
+    }
+}
+
+# What each unit stands on lives in the roster's third column rather than on the unit page, so the
+# graph is read from there. A roster that cannot be read leaves every set empty, which makes the flag
+# below fall back to the own-declaration reading rather than inventing an answer.
+$rosterNode = Get-Field $Process 'roster' $null
+$rosterRel = if ($rosterNode) { Get-Field $rosterNode 'path' '' } else { '' }
+if ($rosterRel) {
+    $rosterPath = Join-Path $RepoRoot $rosterRel
+    if (Test-Path -LiteralPath $rosterPath) {
+        $byUnit = @{}
+        foreach ($u in $units.ToArray()) { $byUnit[$u.Name] = $u }
+        foreach ($line in [System.IO.File]::ReadAllLines($rosterPath)) {
+            $cells = @([regex]::Matches($line, '(?<=\|)[^|]*(?=\|)') | ForEach-Object { $_.Value })
+            if ($cells.Count -lt 3) { continue }
+            $m = [regex]::Match($cells[0], '`([a-z][a-z0-9-]*)`')
+            if (-not $m.Success) { continue }
+            $name = $m.Groups[1].Value
+            if (-not $byUnit.ContainsKey($name)) { continue }
+            foreach ($r in [regex]::Matches($cells[2], '`([a-z][a-z0-9-]*)`')) {
+                $byUnit[$name].DependsOn.Add($r.Groups[1].Value) | Out-Null
+            }
+        }
     }
 }
 
@@ -200,15 +239,70 @@ if ($owed.Count -eq 0) {
 
 Write-Host ""
 Write-Host "Reading unbuilt, mostly proven" -ForegroundColor White
+
+$unitByName = @{}
+foreach ($u in $units.ToArray()) { $unitByName[$u.Name] = $u }
+$script:reachedIndirectly = $false
+
+function Get-ContractBlockers {
+    param([object]$Unit, [hashtable]$ByName)
+    $blockers = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object System.Collections.Generic.HashSet[string]
+    $seen.Add($Unit.Name) | Out-Null
+    # Breadth-first, so a blocker is named at its shortest reach, and cycle-safe: the graph has them.
+    $queue = New-Object 'System.Collections.Generic.Queue[object]'
+    foreach ($d in $Unit.DependsOn) { $queue.Enqueue([pscustomobject]@{ Name = $d; Indirect = $false }) }
+    while ($queue.Count -gt 0) {
+        $cur = $queue.Dequeue()
+        if (-not $seen.Add($cur.Name)) { continue }
+        if (-not $ByName.ContainsKey($cur.Name)) { continue }
+        $dep = $ByName[$cur.Name]
+        # Built first, and deliberately: a built unit blocks nothing however its contract reads, and
+        # nothing is reached through it, because it was started and so its own dependencies held.
+        # Asking about the contract first made a built unit with a `partial` contract -- the common
+        # case, where the missing part is written when something needs it -- read as blocking four.
+        if ($dep.State -eq 'built') { continue }
+        if ($dep.Contract -ne 'whole') {
+            if ($cur.Indirect) { $script:reachedIndirectly = $true }
+            $blockers.Add("$($dep.Name) ($($dep.Contract))") | Out-Null
+            continue
+        }
+        foreach ($d in $dep.DependsOn) { $queue.Enqueue([pscustomobject]@{ Name = $d; Indirect = $true }) }
+    }
+    return $blockers
+}
+
 $near = @($units.ToArray() |
           Where-Object { $_.State -eq 'unbuilt' -and $_.Total -gt 0 -and ($_.Proven * 100 / $_.Total) -ge 75 } |
           Sort-Object { - ($_.Proven * 100 / $_.Total) })
 if ($near.Count -eq 0) {
     Write-Host "  none" -ForegroundColor Gray
 } else {
+    $anyBlocked = $false
     foreach ($u in $near) {
-        $why = if ($u.Contract -eq 'whole') { 'contract whole -- buildable backlog' } else { "contract $($u.Contract) -- waiting on writing, not code" }
+        if ($u.Contract -ne 'whole') {
+            $why = "contract $($u.Contract) -- waiting on writing, not code"
+        } else {
+            $blockers = @(Get-ContractBlockers -Unit $u -ByName $unitByName | Sort-Object -Unique)
+            if ($blockers.Count -gt 0) {
+                $anyBlocked = $true
+                $why = "cannot finish -- stands on {0}" -f ($blockers -join ', ')
+            } else {
+                $why = 'contract whole, and every unit it stands on -- buildable backlog'
+            }
+        }
         Write-Host ("  {0,-16} {1,3}% ({2}/{3})  {4}" -f $u.Name, [int]($u.Proven * 100 / $u.Total), $u.Proven, $u.Total, $why) -ForegroundColor Yellow
+    }
+    if ($anyBlocked) {
+        Write-Host '  -> one that cannot finish is not plain backlog: it cannot flip to built while a unit it' -ForegroundColor Yellow
+        Write-Host '     stands on owes a contract, because the claims running on that mechanism cannot be' -ForegroundColor Yellow
+        Write-Host '     written and the builder may not start it. Writing that contract is this command''s.' -ForegroundColor Yellow
+        Write-Host '     This is measured over the dependency set and not over the rows left, so the row it has' -ForegroundColor Yellow
+        Write-Host '     left may still be writable -- read the row before concluding nothing can be done.' -ForegroundColor Yellow
+        if ($script:reachedIndirectly) {
+            Write-Host '     Some are reached through a dependency of a dependency, so the name is not always in' -ForegroundColor Yellow
+            Write-Host '     that row -- read it as the contract to write, not as a row to edit.' -ForegroundColor Yellow
+        }
     }
 }
 
