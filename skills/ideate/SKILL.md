@@ -357,6 +357,20 @@ over a walkthrough whose one unproven row belonged to the command it was being r
 row naming both counts as the builder's, its engine-free half having to land before the presented half can
 be read at all.
 
+**And who owes a row is necessary and not sufficient: a row of that command's own standing behind one the
+builder owes is not startable either.** *A row whose answer is "both" is two rows, ordered* says to write
+which of them goes first, and that order is then what decides this — a row is startable when it belongs to
+that command *and* every row it **follows** is proven, so partitioning by owner alone reports a command
+free to act over a walkthrough every one of whose own rows is waiting. Which is the same defect as before,
+arrived at from the other side, and it is the one an owner hit four times: a report said "it can still
+start, three of the rows its arrows name are its own", one of those three stood behind a row the builder
+owed, the command read the ordering the rows state and stopped, and the report the owner acted on had
+never read it. **So the verdict is a count of rows that command can take now, named** — never a count of
+rows it owns, and never a count at all: a number says it may act and not what to act on, which is a second
+trip to work it out and a second chance to work it out differently. Have the gaps run read each row's
+`follows` clause and name them, and have that command's own rule read the same run rather than derive it,
+because two derivations of one answer is what put the two in disagreement for a week.
+
 **A defect found on a released build is a third person's words, and it is consumed rather than kept.**
 Testers exercise the whole application — every unit released, rather than the steps of the top
 walkthrough — so most of what they hit sits under no step at all, and a confirmed walkthrough is

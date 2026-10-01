@@ -143,12 +143,24 @@ place a blocker goes** — never memory, never the report alone.
    that filed two blockers long since answered.
 2. **Read the walkthrough as written**, and the documents of what it needs, off disk. Never restate it
    smaller because part of it is hard; a sentence that cannot happen as written is a blocker.
-3. Check what it needs. Anything `unbuilt`, or carrying an `Open:` line the entry depends on, means the
-   entry cannot start: say so in the report and move to the next walkthrough you can build, stopping when
-   there is none, rather than working in the same units as the build command. **That is not a blocker and
-   it is never filed as one.** The state is already recorded and the dependency is already named, so the
-   line says nothing new, and it cannot be answered by writing a claim — building the unit is the build
-   command's and is already its backlog.
+3. Check what it needs, and then every row its arrows name. A *unit* reading `unbuilt`, or carrying an
+   `Open:` line the entry depends on, means the entry cannot start: say so in the report and move to the
+   next walkthrough you can build, stopping when there is none, rather than working in the same units as
+   the build command. **That is not a blocker and it is never filed as one.** The state is already
+   recorded and the dependency is already named, so the line says nothing new, and it cannot be answered
+   by writing a claim — building the unit is the build command's and is already its backlog.
+   **An unproven row is not that, and reading it as that is how this command stopped on its own backlog.**
+   An owed row sits on a unit reading `built`, so a need naming one orders the work rather than
+   withholding it, and a row the builder owes bounds what this entry can *finish*, never what it can
+   *start*. The entry cannot start only when no row left is one this command can take, and **owning a row
+   is not enough to take it**: a row is startable when it is this command's *and* every row it **follows**
+   is proven. One walkthrough's own row stood behind an owed builder row and was unstartable while two
+   others of the same entry were free the whole time — which is the shape of this mistake, and it has cost
+   a start four times. The gaps run joins the three facts that answer it — who each arrow names, the state
+   each row is in, and the ordering each row states — and **names the startable rows** rather than
+   counting them. Read what it says rather than deriving it: the owner is told the same answer from the
+   same run, so reading it elsewhere is what makes the two disagree. Start on the rows it names, and say
+   in the report which the entry could not reach and what each waits on.
 4. Build the presentation. Compose existing components rather than hand-rolling primitives, name
    tokens rather than literals, and use an approved dependency before making what it already provides.
 5. **What its own code does that can be asserted, it asserts**, in the same commit, at whatever tiers
