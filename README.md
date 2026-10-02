@@ -231,7 +231,9 @@ Or from inside Claude Code: **`/reach:iterate`** checks nothing holds the lane, 
 in its own window, and follows it — relaying what each run lands and stopping it when you ask. That
 window never builds; every run is still its own process. Whether the supervisor is there is read from
 the lane lock rather than from how long ago it last wrote its status, because one long silent tool
-call — a whole verification sweep — would otherwise read as a dead supervisor.
+call — a whole verification sweep — would otherwise read as a dead supervisor. A build started by hand
+holds the same lock (`lane claim build`, which `/reach:build` runs first and releases when it stops), so
+the supervisor will not start beside a session and `-Check` sees either.
 
 Each run is a **new agent process**, not another turn in one session. That is the point: several of
 `/reach:build`'s stop conditions are *"this session has run long enough to stop trusting its own

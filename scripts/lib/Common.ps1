@@ -428,6 +428,71 @@ function Get-LockPath {
     return (Join-Path $LaneWorktree '.reach-lane-lock')
 }
 
+function Get-ProcessInfo {
+    # A process's parent, name and command line, or nothing when it is gone. Windows answers from
+    # Win32_Process, because Get-Process carries no parent or command line on 5.1; elsewhere `ps`
+    # answers on Linux and macOS alike, where /proc exists on only one of them.
+    param([int]$Id)
+    if ($Id -le 0) { return $null }
+    if ((-not (Test-Path variable:IsWindows)) -or $IsWindows) {
+        try { $w = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$Id" -ErrorAction Stop } catch { return $null }
+        if (-not $w) { return $null }
+        return [pscustomobject]@{ Id = [int]$w.ProcessId; Parent = [int]$w.ParentProcessId; Name = [string]$w.Name; Command = [string]$w.CommandLine }
+    }
+    $parent = (@(& ps -o 'ppid=' -p $Id 2>$null) -join '').Trim()
+    if (-not $parent) { return $null }
+    $name = Split-Path -Leaf ((@(& ps -o 'comm=' -p $Id 2>$null) -join '').Trim())
+    $command = (@(& ps -o 'args=' -p $Id 2>$null) -join ' ').Trim()
+    return [pscustomobject]@{ Id = $Id; Parent = [int]$parent; Name = $name; Command = $command }
+}
+
+function Test-AgentProcess {
+    # Claude Code's own process: the native binary, or node running the npm package.
+    param($Info)
+    if (-not $Info) { return $false }
+    if ($Info.Name -match '^claude(\.exe)?$') { return $true }
+    return ($Info.Name -match '^node(\.exe)?$' -and $Info.Command -match 'claude')
+}
+
+function Get-AgentProcessId {
+    <#
+        The agent session this script was run from: the nearest ancestor that is the agent itself.
+
+        A lane claimed by a session has to be held by a process that lives as long as the session,
+        and the shell that runs this script exits a moment after it -- a lock naming it would be stale
+        before the agent read the reply. The agent's tool calls are its descendants, so the walk up
+        finds it, through however many shells sit between. The nearest one, because a run the
+        supervisor started is an agent under a supervisor, and the run is the session.
+
+        REACH_AGENT_PID names it instead, for an agent this walk does not recognise and for a test
+        standing one in. It must name a live process; anything else is no agent at all, and 0 comes
+        back rather than a guess.
+    #>
+    $override = [Environment]::GetEnvironmentVariable('REACH_AGENT_PID')
+    if ($override) {
+        $named = 0
+        if ([int]::TryParse($override, [ref]$named) -and $named -gt 0 -and (Get-Process -Id $named -ErrorAction SilentlyContinue)) { return $named }
+        return 0
+    }
+    $info = Get-ProcessInfo $PID
+    for ($depth = 0; $info -and $depth -lt 32; $depth++) {
+        $info = Get-ProcessInfo $info.Parent
+        if (Test-AgentProcess $info) { return $info.Id }
+    }
+    return 0
+}
+
+function Test-ProcessAncestor {
+    # Whether that process is above this one: the supervisor is above the run it started.
+    param([int]$Id)
+    $info = Get-ProcessInfo $PID
+    for ($depth = 0; $info -and $depth -lt 32; $depth++) {
+        if ($info.Parent -eq $Id) { return $true }
+        $info = Get-ProcessInfo $info.Parent
+    }
+    return $false
+}
+
 function Get-LaneHolder {
     <#
         Who holds the lane, read from its lock: the lock's record when its process is alive, and
@@ -456,7 +521,7 @@ function Enter-LaneLock {
         gone is stale and is taken over, because the alternative is a crashed run blocking the lane
         until somebody notices.
     #>
-    param([string]$LaneWorktree, [string]$Owner)
+    param([string]$LaneWorktree, [string]$Owner, [int]$HolderPid = $PID)
     $path = Get-LockPath $LaneWorktree
 
     if (Test-Path -LiteralPath $path) {
@@ -469,7 +534,7 @@ function Enter-LaneLock {
 
     try {
         $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
-        $payload = (@{ pid = $PID; owner = $Owner; since = (Get-Date).ToString('o') } | ConvertTo-Json -Compress)
+        $payload = (@{ pid = $HolderPid; owner = $Owner; since = (Get-Date).ToString('o') } | ConvertTo-Json -Compress)
         $bytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
         $stream.Write($bytes, 0, $bytes.Length)
         $stream.Close()

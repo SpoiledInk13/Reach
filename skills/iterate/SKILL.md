@@ -31,11 +31,15 @@ Read the arguments as an action and a lane. No action means `start`; no lane mea
 
 ## start
 
-1. **Check.** `Scripts/reach.ps1 run <lane> -Check`, and show its lines. It reads the lane lock, so it
-   answers for any supervisor on this machine.
-   - **exit 1, RUNNING** — do not start a second one. One agent per lane. Say so, then go to **watch**.
-   - **exit 0** with `lane: N uncommitted change(s)` — a session started by hand in the lane, or a run
-     that died mid-work. Nothing records which, so ask the owner whether to start anyway.
+1. **Check.** `Scripts/reach.ps1 run <lane> -Check`, and show its lines. It reads the lane lock, which
+   the supervisor takes and a session started by hand claims, so it answers for either.
+   - **exit 1, RUNNING** held by `Run-Lane` — a supervisor is already going. Do not start a second one;
+     say so, then go to **watch**.
+   - **exit 1, RUNNING** held by `session` — someone is building in the lane by hand. Do not start; say
+     which process holds it, and leave starting to the owner once that session has released it.
+   - **exit 0** with `lane: N uncommitted change(s)` — nothing holds the lane, but something left work in
+     it: a run that died mid-work, or a session from before sessions claimed lanes. Ask the owner whether
+     to start anyway.
    - **exit 0** with `lane: not seeded` — stop, and give the seed command it printed.
 2. **Pre-flight.** `Scripts/reach.ps1 run <lane> -SelfTest`. It proves the halt decision, the watch and
    the stop request on synthetic input in seconds. Anything but `SELF-TEST PASSED` and exit 0: show it
@@ -88,6 +92,6 @@ interrupt in the supervisor's window. Say exactly that.
 
 ## What it never does
 
-- start a second supervisor on a lane, or start one over uncommitted work without the owner's word;
+- start a supervisor on a lane anything holds, or over uncommitted work without the owner's word;
 - build, test or land anything itself — the runs do that, in the lane;
 - answer a question a run parked on — that is the design command's, and a halt is its cue.

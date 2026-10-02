@@ -77,10 +77,20 @@ lanes exist to remove, and it is also why a lane tests exactly the tree that lan
 of it.
 
 ```shell
+pwsh Scripts/reach.ps1 lane claim build      # before anything else touches the lane
 pwsh Scripts/reach.ps1 lane sync build       # bring the integration branch in first
 pwsh Scripts/reach.ps1 all                   # from inside the lane
 pwsh Scripts/reach.ps1 land -Lane build -Message <file> -Verified <sha>
+pwsh Scripts/reach.ps1 lane release build    # when the run stops, for whatever reason
 ```
+
+**Claim the lane before you touch it, and release it when you stop.** One agent per lane is a lock,
+not a convention: the unattended supervisor takes it, and a run started by hand takes the same one, so
+neither can start beside the other and a check on the lane sees either. The claim names this
+session's own process, so a session that ends without releasing frees the lane when it ends. **A
+refused claim means another agent is in the lane — stop, and say who holds it; never work around it.**
+A run the supervisor started finds its supervisor already holding the lane, which is its claim made,
+and its release leaves the supervisor's lock alone.
 
 `-Verified` is the commit whose tree you actually ran the tiers against. If the merge would produce a
 different tree, the land is refused — because something arrived while you were working and what you

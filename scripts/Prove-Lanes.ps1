@@ -13,9 +13,13 @@
 
 .PARAMETER Keep
     Leave the fixtures on disk.
+
+.PARAMETER Only
+    Run only the controls whose names carry this text -- for watching a mutant redden the controls
+    meant for it without paying for the whole suite. A suite run with it is not a proof of the rest.
 #>
 [CmdletBinding()]
-param([switch]$Keep)
+param([switch]$Keep, [string]$Only)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -92,6 +96,7 @@ $results = New-Object System.Collections.Generic.List[object]
 
 function Test-Control {
     param([string]$Name, [scriptblock]$Body)
+    if ($Only -and $Name -notlike "*$Only*") { return }
     try {
         $verdict = & $Body
         if ($verdict -eq $true) {
@@ -697,6 +702,31 @@ Test-Control 'the supervisor refuses a lane command no installed plugin defines'
 
 # ------------------------------------------------------------------------------ check and watch
 
+function Start-Helper {
+    # A child PowerShell running a command, hidden where hiding exists: -WindowStyle is Windows-only,
+    # and pwsh elsewhere refuses it rather than ignoring it.
+    param([string]$Command, [switch]$Wait)
+    $splat = @{ FilePath = (Get-PowerShellExe); ArgumentList = @('-NoProfile', '-Command', $Command); PassThru = $true }
+    if ((-not (Test-Path variable:IsWindows)) -or $IsWindows) { $splat['WindowStyle'] = 'Hidden' }
+    if ($Wait) { $splat['Wait'] = $true }
+    return Start-Process @splat
+}
+
+function Invoke-AsAgent {
+    # Runs a script as though from the agent session with that process id.
+    param([int]$AgentPid, [string]$Script, [string[]]$Arguments)
+    $saved = $env:REACH_AGENT_PID
+    $env:REACH_AGENT_PID = [string]$AgentPid
+    try { return Invoke-Script $Script $Arguments } finally { $env:REACH_AGENT_PID = $saved }
+}
+
+function Read-LockPid {
+    param([string]$Worktree)
+    $path = Get-LockPath $Worktree
+    if (-not (Test-Path -LiteralPath $path)) { return 0 }
+    return [int](Get-Field (Read-TextUtf8 $path | ConvertFrom-Json) 'pid' 0)
+}
+
 function Set-LaneLock {
     # The lock the supervisor writes, held by whichever process the control names.
     param([string]$Worktree, [int]$HolderPid)
@@ -728,7 +758,7 @@ Test-Control 'the check reads a live lock as running and a dead one as not' {
     if ($held.Code -ne 1 -or $held.Output -notmatch 'verdict: RUNNING') { return "a live holder read as exit $($held.Code): $($held.Output)" }
 
     # A pid that existed and is gone -- what a crashed supervisor leaves behind.
-    $gone = Start-Process (Get-PowerShellExe) -ArgumentList '-NoProfile', '-Command', 'exit' -PassThru -Wait -WindowStyle Hidden
+    $gone = Start-Helper -Command 'exit' -Wait
     Set-LaneLock -Worktree $worktree -HolderPid $gone.Id
     $dead = Invoke-Script $Run @('build', '-Root', $repo, '-Check')
     if ($dead.Code -ne 0 -or $dead.Output -notmatch 'NOT RUNNING') { return "a dead holder read as exit $($dead.Code): $($dead.Output)" }
@@ -743,7 +773,7 @@ Test-Control 'a watch follows a quiet supervisor that still holds the lane to it
 
     # A real process standing in for the supervisor: it holds the lane in silence, then finishes.
     $finish = "Start-Sleep -Seconds 8; Add-Content -LiteralPath '$ledger' -Value '[10:45:00] lane supervisor -- build -- finished after 1 run(s)'"
-    $holder = Start-Process (Get-PowerShellExe) -ArgumentList '-NoProfile', '-Command', $finish -PassThru -WindowStyle Hidden
+    $holder = Start-Helper -Command $finish
     Set-LaneLock -Worktree $worktree -HolderPid $holder.Id
 
     $watch = Invoke-Script $Run @('build', '-Root', $repo, '-Watch')
@@ -766,6 +796,157 @@ Test-Control 'a watch calls a supervisor gone without its last line stale' {
     return $true
 }
 
+# --------------------------------------------------------------------------- a session's claim
+
+Test-Control 'a claimed lane refuses a second session, and only its holder releases it' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+    $first = Start-Helper -Command 'Start-Sleep -Seconds 120'
+    $second = Start-Helper -Command 'Start-Sleep -Seconds 120'
+    try {
+        $claim = Invoke-AsAgent -AgentPid $first.Id -Script $Lane -Arguments @('claim', 'build', '-Root', $repo)
+        if ($claim.Code -ne 0) { return "the first claim exited $($claim.Code): $($claim.Output)" }
+        if ((Read-LockPid $worktree) -ne $first.Id) { return 'the lock does not name the session that claimed it' }
+
+        $check = Invoke-Script $Run @('build', '-Root', $repo, '-Check')
+        if ($check.Code -ne 1) { return "run -Check did not see the session: exit $($check.Code)" }
+
+        $rival = Invoke-AsAgent -AgentPid $second.Id -Script $Lane -Arguments @('claim', 'build', '-Root', $repo)
+        if ($rival.Code -eq 0) { return 'a second session claimed a held lane' }
+        if ($rival.Output -notmatch 'held by session') { return "the second claim refused for another reason: $($rival.Output)" }
+
+        $steal = Invoke-AsAgent -AgentPid $second.Id -Script $Lane -Arguments @('release', 'build', '-Root', $repo)
+        if ($steal.Code -eq 0 -or (Read-LockPid $worktree) -ne $first.Id) { return 'another session released a lane it did not hold' }
+
+        $release = Invoke-AsAgent -AgentPid $first.Id -Script $Lane -Arguments @('release', 'build', '-Root', $repo)
+        if ($release.Code -ne 0 -or (Read-LockPid $worktree) -ne 0) { return "the holder's release did not free the lane: $($release.Output)" }
+    } finally {
+        Stop-Process -Id $first.Id, $second.Id -Force -ErrorAction SilentlyContinue
+    }
+    return $true
+}
+
+Test-Control 'a session that ends without releasing frees the lane' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+    $first = Start-Helper -Command 'Start-Sleep -Seconds 120'
+    $second = Start-Helper -Command 'Start-Sleep -Seconds 120'
+    try {
+        Invoke-AsAgent -AgentPid $first.Id -Script $Lane -Arguments @('claim', 'build', '-Root', $repo) | Out-Null
+        Stop-Process -Id $first.Id -Force
+        $first.WaitForExit()
+        $claim = Invoke-AsAgent -AgentPid $second.Id -Script $Lane -Arguments @('claim', 'build', '-Root', $repo)
+        if ($claim.Code -ne 0) { return "a lane whose session died stayed held: $($claim.Output)" }
+        if ((Read-LockPid $worktree) -ne $second.Id) { return 'the new claim did not take the lock' }
+    } finally {
+        Stop-Process -Id $second.Id -Force -ErrorAction SilentlyContinue
+    }
+    return $true
+}
+
+Test-Control 'a run under the supervisor finds its claim made, and leaves the supervisor its lock' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+    # A run whose agent the walk cannot find -- a gone pid stands in, as a wrapper breaking the chain
+    # leaves one. Its supervisor holding the lane must be answer enough without it.
+    $agent = Start-Helper -Command 'exit' -Wait
+    try {
+        # A real process chain: the stand-in supervisor holds the lane and runs the claim and the
+        # release beneath it, as the supervisor runs an agent whose tool calls run them.
+        $launch = (Get-PowerShellArgs) -join ' '
+        $supervisor = @'
+[System.IO.File]::WriteAllText('@LOCK@', ('{"pid":' + $PID + ',"owner":"Run-Lane","since":"x"}'))
+$env:REACH_AGENT_PID = '@AGENT@'
+& '@PSEXE@' @LAUNCH@ -File '@LANE@' claim build -Root '@REPO@'
+"CLAIM=$LASTEXITCODE"
+& '@PSEXE@' @LAUNCH@ -File '@LANE@' release build -Root '@REPO@'
+"RELEASE=$LASTEXITCODE"
+"ME=$PID"
+'@
+        $supervisor = $supervisor.Replace('@LOCK@', (Get-LockPath $worktree)).Replace('@AGENT@', [string]$agent.Id).
+            Replace('@PSEXE@', (Get-Command (Get-PowerShellExe)).Source).Replace('@LAUNCH@', $launch).
+            Replace('@LANE@', $Lane).Replace('@REPO@', $repo)
+        # A file rather than -Command: Windows strips the double quotes from a command-line argument.
+        $file = Join-Path (Split-Path -Parent $repo) 'supervisor.ps1'
+        [System.IO.File]::WriteAllText($file, $supervisor, (New-Object System.Text.UTF8Encoding($false)))
+        $launchArgs = Get-PowerShellArgs
+        $said = (& (Get-PowerShellExe) @launchArgs -File $file 2>&1 | Out-String)
+        $me = if ($said -match 'ME=(\d+)') { [int]$Matches[1] } else { -1 }
+        if ($said -notmatch 'CLAIM=0') { return "the run's claim was refused under its own supervisor: $said" }
+        if ($said -notmatch 'RELEASE=0') { return "the run's release failed: $said" }
+        if ((Read-LockPid $worktree) -ne $me) { return "the run's release took the supervisor's lock: $said" }
+    } finally {
+        Stop-Process -Id $agent.Id -Force -ErrorAction SilentlyContinue
+    }
+    return $true
+}
+
+Test-Control 'a claim finds the agent above it through the shells between' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+
+    # A stand-in agent the walk recognises by name: the PowerShell binary, copied or linked as
+    # `claude`. Nothing names it in the environment, so only the walk can find it.
+    $shell = (Get-Command (Get-PowerShellExe)).Source
+    if ((-not (Test-Path variable:IsWindows)) -or $IsWindows) {
+        $stand = Join-Path (Split-Path -Parent $repo) 'claude.exe'
+        Copy-Item -LiteralPath $shell -Destination $stand
+    } else {
+        $stand = Join-Path (Split-Path -Parent $repo) 'claude'
+        New-Item -ItemType SymbolicLink -Path $stand -Target $shell | Out-Null
+    }
+    # A shell between the agent and the claim, as a tool call always has one: with the agent as the
+    # claim's direct parent, a walk that took the first ancestor whatever it was would pass.
+    $launch = (Get-PowerShellArgs) -join ' '
+    $dir = Split-Path -Parent $repo
+    $between = Join-Path $dir 'between.ps1'
+    $outer = Join-Path $dir 'agent.ps1'
+    [System.IO.File]::WriteAllText($between, "& '$shell' $launch -File '$Lane' claim build -Root '$repo' | Out-Null; exit `$LASTEXITCODE")
+    [System.IO.File]::WriteAllText($outer, "`$PID; & '$shell' $launch -File '$between'; exit `$LASTEXITCODE")
+    $saved = $env:REACH_AGENT_PID
+    Remove-Item Env:REACH_AGENT_PID -ErrorAction SilentlyContinue
+    try { $launchArgs = Get-PowerShellArgs; $said = @(& $stand @launchArgs -File $outer 2>&1); $code = $LASTEXITCODE }
+    finally { if ($saved) { $env:REACH_AGENT_PID = $saved } }
+
+    if ($code -ne 0) { return "the claim exited $code under a stand-in agent: $($said -join ' ')" }
+    $standPid = [int]([string]$said[0]).Trim()
+    if ((Read-LockPid $worktree) -ne $standPid) { return "the lock names pid $(Read-LockPid $worktree), not the agent $standPid above the claim" }
+    return $true
+}
+
+Test-Control 'a claim with no live agent above it refuses rather than hold the lane for nothing' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+    $gone = Start-Helper -Command 'exit' -Wait
+    $claim = Invoke-AsAgent -AgentPid $gone.Id -Script $Lane -Arguments @('claim', 'build', '-Root', $repo)
+    if ($claim.Code -eq 0) { return 'it claimed for a process that is gone' }
+    if ($claim.Output -notmatch 'no agent session') { return "refused for another reason: $($claim.Output)" }
+    if ((Read-LockPid $worktree) -ne 0) { return 'a lock was left behind anyway' }
+    return $true
+}
+
+Test-Control 'the supervisor refuses a lane a session holds' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    # A command no plugin is asked for, so the plugin guard passes and the lock is the one to speak.
+    Set-ProcessField -Repo $repo -Name 'lanes' -Value @(@{ name = 'build'; branch = 'build'; worktree = '../lanes/build'; command = '/build' })
+    $session = Start-Helper -Command 'Start-Sleep -Seconds 120'
+    try {
+        Invoke-AsAgent -AgentPid $session.Id -Script $Lane -Arguments @('claim', 'build', '-Root', $repo) | Out-Null
+        $supervise = Invoke-Script $Run @('build', '-Root', $repo, '-DryRun')
+        if ($supervise.Code -eq 0) { return 'it ran beside the session' }
+        if ($supervise.Output -notmatch 'already held') { return "refused for another reason: $($supervise.Output)" }
+    } finally {
+        Stop-Process -Id $session.Id -Force -ErrorAction SilentlyContinue
+    }
+    return $true
+}
+
 # ---------------------------------------------------------------------------------------- done
 
 if (-not $Keep) {
@@ -779,4 +960,5 @@ if ($failed.Count -gt 0) {
     exit 1
 }
 Write-Host ("PASS -- all {0} lane control(s) refused what they claim to refuse" -f $results.Count) -ForegroundColor Green
+if ($Only) { Write-Host ("  (only those naming '{0}' ran -- the rest are unproven by this run)" -f $Only) -ForegroundColor Yellow }
 exit 0

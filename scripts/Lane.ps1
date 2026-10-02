@@ -16,13 +16,21 @@
       * the primary checkout sits on its own branch, yours and /reach:ideate's;
       * each lane is a worktree on its own long-lived branch.
 
-    Verbs: seed, sync, status, remove.
+    Verbs: seed, sync, claim, release, status, remove.
 
       Lane.ps1 seed build          create the worktree and branch, and warm it
       Lane.ps1 sync build          bring the integration branch into the lane
       Lane.ps1 sync -Primary       bring it into the primary checkout, which nothing else syncs
-      Lane.ps1 status              the primary and every lane: branch, lock, dirt, ahead or behind
+      Lane.ps1 claim build         hold the lane for the agent session running this
+      Lane.ps1 release build       let it go again
+      Lane.ps1 status              the primary and every lane: branch, holder, dirt, ahead or behind
       Lane.ps1 remove build        remove the worktree; the branch stays
+
+    `claim` is how a session started by hand takes the lane the supervisor takes for itself, so the
+    two cannot both be in it and `run -Check` sees either. The lock names the session's agent process
+    rather than this script's, which exits at once: a session that ends without releasing frees the
+    lane when that process ends. A run the supervisor started finds its own supervisor holding the
+    lane, which is the claim already made, and its release leaves the supervisor's lock alone.
 
     `sync -Primary` is here rather than in a verb of its own because it is the same operation on the
     one working tree that is not a lane -- and the tree whose staleness is invisible, since no land
@@ -33,7 +41,7 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true, Position = 0)][ValidateSet('seed', 'sync', 'status', 'remove')][string]$Verb,
+    [Parameter(Mandatory = $true, Position = 0)][ValidateSet('seed', 'sync', 'claim', 'release', 'status', 'remove')][string]$Verb,
     [Parameter(Position = 1)][string]$Lane,
     [string]$Root,
     [switch]$Force,
@@ -282,11 +290,83 @@ function Invoke-Status {
             }
         }
         $lockPath = Get-LockPath $lane.Worktree
-        if (Test-Path -LiteralPath $lockPath) { $notes.Add('LOCKED') | Out-Null }
+        if (Test-Path -LiteralPath $lockPath) {
+            $holder = Get-LaneHolder -LaneWorktree $lane.Worktree
+            if ($holder) { $notes.Add(("held by {0} (pid {1})" -f (Get-Field $holder 'owner' '?'), (Get-Field $holder 'pid' '?'))) | Out-Null }
+            else { $notes.Add('stale lock -- its process is gone, and the next claim takes it') | Out-Null }
+        }
 
         $colour = if ($branch -ne $lane.Branch) { 'Red' } elseif ($notes.Count -gt 0) { 'Yellow' } else { 'Green' }
         Write-Host ("  {0,-12} {1,-10} {2}" -f $name, $branch, ($notes -join ', ')) -ForegroundColor $colour
     }
+}
+
+# ------------------------------------------------------------------------------- claim and release
+
+function Invoke-Claim {
+    $lane = Get-Lane $Lane
+    if (-not (Test-Path -LiteralPath $lane.Worktree)) {
+        Write-Host ("REFUSED: lane '{0}' is not seeded. Run: Lane.ps1 seed {0}" -f $lane.Name) -ForegroundColor Red
+        exit 2
+    }
+    # The holder first, because a run under the supervisor needs no agent of its own to be found: the
+    # supervisor holding the lane is its claim, and a wrapper between the two -- Git Bash's `timeout`
+    # leaves a parent pid that no longer exists -- can break the walk without changing that.
+    $holder = Get-LaneHolder -LaneWorktree $lane.Worktree
+    if ($holder) {
+        $heldBy = [int](Get-Field $holder 'pid' 0)
+        if (Test-ProcessAncestor -Id $heldBy) {
+            Write-Host ("HELD: lane '{0}' is held by the supervisor running this session (pid {1}), which is the claim already made." -f $lane.Name, $heldBy) -ForegroundColor Green
+            exit 0
+        }
+        if ($heldBy -eq (Get-AgentProcessId)) {
+            Write-Host ("HELD: lane '{0}' is already this session's (pid {1})." -f $lane.Name, $heldBy) -ForegroundColor Green
+            exit 0
+        }
+        Write-Host ("REFUSED: lane '{0}' is held by {1} (pid {2}) since {3}. One agent per lane -- stop rather than share it." -f $lane.Name, (Get-Field $holder 'owner' '?'), $heldBy, (Get-Field $holder 'since' '?')) -ForegroundColor Red
+        exit 2
+    }
+
+    $agent = Get-AgentProcessId
+    if ($agent -le 0) {
+        Write-Host 'REFUSED: no agent session above this process, so there is nothing to hold the lane that outlives this script. Claim from the agent session doing the work, or set REACH_AGENT_PID to its process -- a wrapper that breaks the process chain, such as Git Bash''s timeout, hides it from the walk.' -ForegroundColor Red
+        exit 2
+    }
+
+    $lock = Enter-LaneLock -LaneWorktree $lane.Worktree -Owner 'session' -HolderPid $agent
+    if (-not $lock.Ok) {
+        # Only a claim racing this one gets here: the check above saw no live holder.
+        Write-Host ("REFUSED: lane '{0}' was taken a moment ago. One agent per lane." -f $lane.Name) -ForegroundColor Red
+        exit 2
+    }
+    Write-Host ("CLAIMED: lane '{0}' for this session (pid {1}). Release it when the run stops: Lane.ps1 release {0}" -f $lane.Name, $agent) -ForegroundColor Green
+}
+
+function Invoke-Release {
+    $lane = Get-Lane $Lane
+    $path = Get-LockPath $lane.Worktree
+    if (-not (Test-Path -LiteralPath $path)) {
+        Write-Host ("FREE: lane '{0}' was not held." -f $lane.Name) -ForegroundColor Green
+        exit 0
+    }
+    $holder = Get-LaneHolder -LaneWorktree $lane.Worktree
+    if (-not $holder) {
+        Exit-LaneLock -LaneWorktree $lane.Worktree
+        Write-Host ("FREE: lane '{0}' had a stale lock, now removed." -f $lane.Name) -ForegroundColor Green
+        exit 0
+    }
+    $heldBy = [int](Get-Field $holder 'pid' 0)
+    if (Test-ProcessAncestor -Id $heldBy) {
+        Write-Host ("LEFT: lane '{0}' is the supervisor's (pid {1}), and it releases the lane when the loop ends." -f $lane.Name, $heldBy) -ForegroundColor Green
+        exit 0
+    }
+    if ($heldBy -eq (Get-AgentProcessId)) {
+        Exit-LaneLock -LaneWorktree $lane.Worktree
+        Write-Host ("RELEASED: lane '{0}'." -f $lane.Name) -ForegroundColor Green
+        exit 0
+    }
+    Write-Host ("REFUSED: lane '{0}' is held by {1} (pid {2}), not this session. Releasing it would let a second agent in beside the first." -f $lane.Name, (Get-Field $holder 'owner' '?'), $heldBy) -ForegroundColor Red
+    exit 2
 }
 
 # ---------------------------------------------------------------------------------------- remove
@@ -310,7 +390,9 @@ switch ($Verb) {
         }
         if ($Primary) { Invoke-SyncPrimary } else { Invoke-Sync }
     }
-    'status' { Invoke-Status }
-    'remove' { Invoke-Remove }
+    'claim'   { Invoke-Claim }
+    'release' { Invoke-Release }
+    'status'  { Invoke-Status }
+    'remove'  { Invoke-Remove }
 }
 exit 0
