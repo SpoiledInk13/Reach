@@ -19,6 +19,17 @@ command's to fix however assertable it is, never a blocker and never handed back
 A project naming no `human.layer` gives this command no code at all: it composes and tunes, and the
 build command writes everything.
 
+**A decision is not a defect, and the layer is not what tells them apart.** A defect is this layer
+doing badly what a claim already rules; a decision is this layer filling a blank no claim rules at
+all, and laying out a surface is a thousand of those. Both sit in the same layer, so reading
+ownership off the layer answers for the first and silently takes the second — which is a design
+call, and this command makes none. Measured on one project: of twenty-four verdicts the owner wrote
+on a single walkthrough, sixteen turned on a behaviour no document had ruled and two were the look,
+while the questions this command filed fell from thirty-three across twenty-five lands to seven
+across the twenty-five that followed. Every one of those sixteen reached the owner as a surprise
+rather than as a line they could have answered in a sentence. **So what a claim says about it
+decides, never where its code lives**, and what to do with a decision is under **Blockers**.
+
 The work is real, not a thin shell: layout, type, colour, motion, light, effects, and how every cue
 sounds in the mix.
 
@@ -110,6 +121,16 @@ recommendation.** It goes under the walkthrough rather than under a unit's claim
 unit cannot carry an `Open:` line, and because answering one means writing the missing claim, which
 returns the work to the build command's backlog.
 
+**A decision is filed or listed, and what decides is whether learning the answer late costs a rebuild.**
+A blocker stops the work: build on a guess and the answer arriving later means building it again, so
+it is one `Open:` line and this command carries on elsewhere. A decision cheap to
+reverse — which word a label reads, whether a panel keeps its selection, which of two shapes an
+entry is drawn as — is not worth stopping for and not worth hiding either: it goes in the
+hand-over's list of what this command decided (step 8), where the owner reads it beside the artifact
+that shows it. Filing every one would stop the command on every surface; filing none is what put
+sixteen of one walkthrough's twenty-four verdicts into the owner's words instead, each costing a
+build, a triage, a row and a relayout where the list costs a line.
+
 **A finding with no obvious home is still an `Open:` line, never a heading of your own** — provided it
 is a question. The inbox matches a closed set of markers, so a new bold lead-in — however apt it reads
 — files into nothing and no grep will ever surface it. One run wrote a measured performance regression
@@ -172,10 +193,22 @@ place a blocker goes** — never memory, never the report alone.
    developer shortcuts, and capture what it looks like at each step. Read every capture against the
    sentence and the mockups, and fix and rebuild what is wrong. Name anything you could not drive, and
    name what no capture shows — how it sounds is the owner's to hear.
-8. **Hand it over and stop.** The owner runs the build. Verification happens on the real artifact or
+8. **Hand it over and stop**, with the list of what this command decided that no document ruled
+   (below). The owner runs the build. Verification happens on the real artifact or
    not at all: the development environment is not what ships, and a walkthrough that only works there
    has not happened. **A capture never closes this gate, and neither does a description of what you
    saw.**
+
+**What this command decided is declared, not left in the artifact for the owner to find.** One list
+in the hand-over, naming every choice made that could not be read off a claim, a token, or a bought
+component's own default — those three being the whole of what this command builds a surface from, so
+a shape taken from a package's default is not a decision and one invented beside it is. Each entry
+is the choice and the blank it filled, in a line: *the panel keeps its selection when a choice is
+made — nothing rules it*. The owner answers what they care about in the sitting they read the
+artifact, the missing claims get written, and what they pass over stands. On one surface four of its
+entries were clauses the owner wrote as verdicts instead, across three of that walkthrough's
+twenty-four. **A decision kept off the list is one the owner can only find by being surprised by
+it**, which is a verdict rather than an answer and costs a build cycle rather than a sentence.
 
 ## The owner's verdict
 
