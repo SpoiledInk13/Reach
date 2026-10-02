@@ -695,6 +695,77 @@ Test-Control 'the supervisor refuses a lane command no installed plugin defines'
     return $true
 }
 
+# ------------------------------------------------------------------------------ check and watch
+
+function Set-LaneLock {
+    # The lock the supervisor writes, held by whichever process the control names.
+    param([string]$Worktree, [int]$HolderPid)
+    $payload = @{ pid = $HolderPid; owner = 'Run-Lane'; since = (Get-Date).ToString('o') } | ConvertTo-Json -Compress
+    [System.IO.File]::WriteAllText((Get-LockPath $Worktree), $payload, (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function New-WatchLedger {
+    # A run in flight as the supervisor leaves it on disk: a ledger with no last line, and a status
+    # older than the stale threshold, which is what one long silent tool call produces.
+    param([string]$Repo)
+    $runDir = Join-Path $Repo ('Logs/reach-lane/build/' + (Get-Date -Format 'yyyy-MM-dd_HHmmss'))
+    New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+    $ledger = Join-Path $runDir 'ledger.txt'
+    [System.IO.File]::WriteAllText($ledger, "[10:00:00] lane supervisor -- build -- started`r`n[10:00:01] === run 1 ===`r`n[10:00:02]   tool  Bash`r`n")
+    $status = Join-Path $Repo 'Logs/reach-lane/build/status.txt'
+    [System.IO.File]::WriteAllText($status, 'lane=build run=1 :: tool  Bash')
+    (Get-Item -LiteralPath $status).LastWriteTime = (Get-Date).AddMinutes(-45)
+    return $ledger
+}
+
+Test-Control 'the check reads a live lock as running and a dead one as not' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+
+    Set-LaneLock -Worktree $worktree -HolderPid $PID
+    $held = Invoke-Script $Run @('build', '-Root', $repo, '-Check')
+    if ($held.Code -ne 1 -or $held.Output -notmatch 'verdict: RUNNING') { return "a live holder read as exit $($held.Code): $($held.Output)" }
+
+    # A pid that existed and is gone -- what a crashed supervisor leaves behind.
+    $gone = Start-Process (Get-PowerShellExe) -ArgumentList '-NoProfile', '-Command', 'exit' -PassThru -Wait -WindowStyle Hidden
+    Set-LaneLock -Worktree $worktree -HolderPid $gone.Id
+    $dead = Invoke-Script $Run @('build', '-Root', $repo, '-Check')
+    if ($dead.Code -ne 0 -or $dead.Output -notmatch 'NOT RUNNING') { return "a dead holder read as exit $($dead.Code): $($dead.Output)" }
+    return $true
+}
+
+Test-Control 'a watch follows a quiet supervisor that still holds the lane to its finish' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+    $ledger = New-WatchLedger -Repo $repo
+
+    # A real process standing in for the supervisor: it holds the lane in silence, then finishes.
+    $finish = "Start-Sleep -Seconds 8; Add-Content -LiteralPath '$ledger' -Value '[10:45:00] lane supervisor -- build -- finished after 1 run(s)'"
+    $holder = Start-Process (Get-PowerShellExe) -ArgumentList '-NoProfile', '-Command', $finish -PassThru -WindowStyle Hidden
+    Set-LaneLock -Worktree $worktree -HolderPid $holder.Id
+
+    $watch = Invoke-Script $Run @('build', '-Root', $repo, '-Watch')
+    $holder.WaitForExit()
+    if ($watch.Code -ne 0) { return "exited $($watch.Code): $($watch.Output)" }
+    if ($watch.Output -notmatch 'quiet:') { return 'the quiet was not reported' }
+    if ($watch.Output -match 'STALE') { return 'a supervisor holding the lane was called stale' }
+    if ($watch.Output -match 'tool  Bash') { return 'the per-tool lines were not left out' }
+    return $true
+}
+
+Test-Control 'a watch calls a supervisor gone without its last line stale' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    New-WatchLedger -Repo $repo | Out-Null
+
+    $watch = Invoke-Script $Run @('build', '-Root', $repo, '-Watch')
+    if ($watch.Code -ne 2) { return "exited $($watch.Code), not 2: $($watch.Output)" }
+    if ($watch.Output -notmatch 'STALE') { return 'exited 2 for another reason' }
+    return $true
+}
+
 # ---------------------------------------------------------------------------------------- done
 
 if (-not $Keep) {

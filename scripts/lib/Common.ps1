@@ -428,6 +428,24 @@ function Get-LockPath {
     return (Join-Path $LaneWorktree '.reach-lane-lock')
 }
 
+function Get-LaneHolder {
+    <#
+        Who holds the lane, read from its lock: the lock's record when its process is alive, and
+        nothing when there is no lock or its process is gone. That is the whole answer to "is
+        something running in this lane?" -- a status file's age answers a different question, how
+        long since the agent last said anything, and one long tool call makes the two disagree.
+    #>
+    param([string]$LaneWorktree)
+    $path = Get-LockPath $LaneWorktree
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+    $held = $null
+    try { $held = Read-TextUtf8 $path | ConvertFrom-Json } catch { return $null }
+    $pidHeld = [int](Get-Field $held 'pid' 0)
+    if ($pidHeld -le 0) { return $null }
+    if ($null -eq (Get-Process -Id $pidHeld -ErrorAction SilentlyContinue)) { return $null }
+    return $held
+}
+
 function Enter-LaneLock {
     <#
         One agent per lane. Two sharing one share its index and its build cache, which is the
@@ -442,14 +460,8 @@ function Enter-LaneLock {
     $path = Get-LockPath $LaneWorktree
 
     if (Test-Path -LiteralPath $path) {
-        $held = $null
-        try { $held = Read-TextUtf8 $path | ConvertFrom-Json } catch { $held = $null }
-        $pidHeld = if ($held) { [int](Get-Field $held 'pid' 0) } else { 0 }
-        $alive = $false
-        if ($pidHeld -gt 0) {
-            $alive = $null -ne (Get-Process -Id $pidHeld -ErrorAction SilentlyContinue)
-        }
-        if ($alive) {
+        $held = Get-LaneHolder -LaneWorktree $LaneWorktree
+        if ($held) {
             return [pscustomobject]@{ Ok = $false; Held = $held; Path = $path }
         }
         Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue

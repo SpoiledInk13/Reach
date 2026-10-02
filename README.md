@@ -222,8 +222,16 @@ landing stays with the reviewers.
 ```shell
 pwsh Scripts/reach.ps1 run build            # until a run commits nothing
 pwsh Scripts/reach.ps1 run build -Status -Follow    # from another terminal
+pwsh Scripts/reach.ps1 run build -Check     # is anything holding the lane? exit 1 if so
+pwsh Scripts/reach.ps1 run build -Watch     # what each run landed, as short events
 pwsh Scripts/reach.ps1 run build -Stop      # finishes the run in flight, then stops
 ```
+
+Or from inside Claude Code: **`/reach:iterate`** checks nothing holds the lane, launches the supervisor
+in its own window, and follows it — relaying what each run lands and stopping it when you ask. That
+window never builds; every run is still its own process. Whether the supervisor is there is read from
+the lane lock rather than from how long ago it last wrote its status, because one long silent tool
+call — a whole verification sweep — would otherwise read as a dead supervisor.
 
 Each run is a **new agent process**, not another turn in one session. That is the point: several of
 `/reach:build`'s stop conditions are *"this session has run long enough to stop trusting its own

@@ -28,6 +28,27 @@
 .PARAMETER Follow
     With -Status, keep printing until the loop ends.
 
+.PARAMETER Check
+    Say whether anything holds the lane and exit: 0 nothing, 1 a supervisor is running. Read from the
+    lane lock rather than a process table, and it also reports uncommitted work in the lane, which is
+    the only trace a session started by hand leaves.
+
+.PARAMETER Watch
+    Follow the newest ledger as a short event stream, for a chat window rather than a terminal: run
+    boundaries, verdicts and a `progress:` line when the lane branch moves, never the per-tool lines
+    -Follow prints. Exits 0 when the supervisor finishes, 4 when it crashed, 2 when no supervisor
+    holds the lane and its ledger never said it finished, 3 when -NewRun saw it never start, 1 when
+    there is nothing to watch. A supervisor holding the lane through a long silent tool call is a
+    `quiet:` line, never a stale one.
+
+.PARAMETER NewRun
+    With -Watch: wait up to two minutes for a ledger newer than this call, so a watch started in the
+    same breath as the supervisor follows the new run rather than finding the previous one finished.
+
+.PARAMETER FromEnd
+    With -Watch: skip the lines already written, for re-arming a watch that expired. A last line
+    written in the gap is still found and reported.
+
 .PARAMETER Stop
     Ask the loop to stop after the run in flight, so that run still lands.
 
@@ -48,6 +69,10 @@ param(
     [string]$Root,
     [switch]$Status,
     [switch]$Follow,
+    [switch]$Check,
+    [switch]$Watch,
+    [switch]$NewRun,
+    [switch]$FromEnd,
     [switch]$Stop,
     [switch]$SelfTest,
     [switch]$DryRun
@@ -93,11 +118,18 @@ function Show-Status {
     }
     $line = (Read-TextUtf8 $StatusFile).Trim()
     $age = (Get-Date) - (Get-Item -LiteralPath $StatusFile).LastWriteTime
-    $stale = $age -gt $script:StaleAfter
-    $colour = if ($stale) { 'Red' } else { 'Green' }
+    $old = $age -gt $script:StaleAfter
+    # Age alone cannot say dead: the status is written when the agent says something, and one long
+    # tool call says nothing for as long as it runs. The lock says whether the supervisor is there.
+    $holder = $null
+    if ($old) { $holder = Get-LaneHolder -LaneWorktree $laneConfig.Worktree }
+    $stale = $old -and -not $holder
+    $colour = if ($stale) { 'Red' } elseif ($old) { 'Yellow' } else { 'Green' }
     Write-Host $line -ForegroundColor $colour
     if ($stale) {
-        Write-Host ("  nothing has refreshed this for {0:hh\:mm\:ss} -- that is a dead supervisor, not a quiet one." -f $age) -ForegroundColor Red
+        Write-Host ("  nothing has refreshed this for {0:hh\:mm\:ss} and nothing holds the lane -- that is a dead supervisor, not a quiet one." -f $age) -ForegroundColor Red
+    } elseif ($old) {
+        Write-Host ("  quiet for {0:hh\:mm\:ss}, but pid {1} still holds the lane -- most likely one long tool call." -f $age, (Get-Field $holder 'pid' '?')) -ForegroundColor Yellow
     }
     return (-not $stale)
 }
@@ -117,6 +149,161 @@ if ($Stop) {
     Write-Host '  (Ctrl-C instead would kill the run and lose whatever it had not committed.)' -ForegroundColor DarkGray
     exit 0
 }
+
+# ------------------------------------------------------------------------------ check and watch
+
+# The supervisor's last ledger lines: a finish (a halt and a stop both end in one) and a crash.
+$script:EndPattern   = 'lane supervisor -- .+ -- finished after|supervisor CRASHED'
+# The per-event lines: a terminal wants them, a chat window is flooded by them.
+$script:NoisePattern = '^\[\d\d:\d\d:\d\d\]\s{3}(tool|say|done)\s{2}'
+# Seams the self-test replaces: who holds the lane, where the lane branch is, the poll, the output.
+$script:HolderProbe = { Get-LaneHolder -LaneWorktree $laneConfig.Worktree }
+$script:TipProbe    = { Get-GitValue -Path $laneConfig.Worktree -Arguments @('log', '-1', '--format=%h %s', $laneConfig.Branch) }
+$script:WatchPoll   = 5
+$script:Captured    = $null
+# Unbounded for a real watch. The self-test bounds it, so a watch that never sees its last line fails
+# the test rather than hanging it.
+$script:WatchMaxPolls = 0
+
+function Out-Watch {
+    # Flushed per line: a watcher whose lines sit in a buffer reports nothing until it exits.
+    param([AllowEmptyString()][string]$Text)
+    if ($null -ne $script:Captured) { $script:Captured.Add($Text) | Out-Null; return }
+    [Console]::Out.WriteLine($Text)
+    [Console]::Out.Flush()
+}
+
+function Read-LinesUtf8 {
+    # Without the final newline: every ledger line ends in one, and splitting it in leaves an empty
+    # last element that counts as a line read -- so the next line appended lands on an index the
+    # watch has already passed, and a finish is never seen.
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return @() }
+    try { return @((Read-TextUtf8 $Path).TrimEnd("`r", "`n") -split "`r?`n") } catch { return @() }
+}
+
+function Find-Ledger {
+    # The newest run directory's ledger. Directories are stamped yyyy-MM-dd_HHmmss, so name order is
+    # time order; -Since keeps only one made after a launch.
+    param([string]$Root, [Nullable[datetime]]$Since)
+    if (-not (Test-Path -LiteralPath $Root)) { return $null }
+    $dirs = @(Get-ChildItem -LiteralPath $Root -Directory | Sort-Object Name -Descending)
+    foreach ($dir in $dirs) {
+        $ledger = Join-Path $dir.FullName 'ledger.txt'
+        if (-not (Test-Path -LiteralPath $ledger)) { continue }
+        if ($Since -and $dir.CreationTime -lt $Since.Value.AddSeconds(-2)) { return $null }
+        return $ledger
+    }
+    return $null
+}
+
+function Get-EndCode {
+    param([string]$Line)
+    if ($Line -match 'CRASHED') { return 4 }
+    return 0
+}
+
+function Invoke-LaneWatch {
+    param([string]$Root, [string]$StatusPath, [bool]$WaitForNew, [bool]$SkipWritten)
+
+    $ledger = $null
+    if ($WaitForNew) {
+        $launched = Get-Date
+        $deadline = $launched.AddMinutes(2)
+        while (-not $ledger -and (Get-Date) -lt $deadline) {
+            $ledger = Find-Ledger -Root $Root -Since $launched
+            if (-not $ledger) { Start-Sleep -Seconds ([Math]::Max(1, $script:WatchPoll)) }
+        }
+        if (-not $ledger) {
+            Out-Watch 'NOT STARTED: no new ledger within two minutes, so the supervisor stopped at a guard before its loop. Its console says which.'
+            return 3
+        }
+    } else {
+        $ledger = Find-Ledger -Root $Root
+        if (-not $ledger) { Out-Watch "nothing to watch: no ledger under $Root."; return 1 }
+    }
+    Out-Watch "watching $ledger"
+
+    $seen = 0
+    if ($SkipWritten) {
+        $lines = @(Read-LinesUtf8 $ledger)
+        foreach ($line in $lines) {
+            if ($line -match $script:EndPattern) { Out-Watch $line; return (Get-EndCode $line) }
+        }
+        $seen = $lines.Count
+    }
+
+    $lastTip = & $script:TipProbe
+    $goneOnce = $false
+    $quietSaid = $null
+    $polls = 0
+    while ($true) {
+        $polls++
+        if ($script:WatchMaxPolls -gt 0 -and $polls -gt $script:WatchMaxPolls) { Out-Watch 'GAVE UP: the poll limit was reached.'; return 5 }
+        $lines = @(Read-LinesUtf8 $ledger)
+        for ($i = $seen; $i -lt $lines.Count; $i++) {
+            $line = [string]$lines[$i]
+            if ($line.Trim().Length -eq 0) { continue }
+            if ($line -match $script:EndPattern) { Out-Watch $line; return (Get-EndCode $line) }
+            if ($line -match $script:NoisePattern) { continue }
+            Out-Watch $line
+        }
+        if ($lines.Count -gt $seen) { $seen = $lines.Count }
+
+        $tip = & $script:TipProbe
+        if ($tip -and $tip -ne $lastTip) { Out-Watch "progress: $tip"; $lastTip = $tip }
+
+        if (& $script:HolderProbe) {
+            $goneOnce = $false
+            $age = $null
+            if (Test-Path -LiteralPath $StatusPath) { $age = (Get-Date) - (Get-Item -LiteralPath $StatusPath).LastWriteTime }
+            if ($null -ne $age -and $age -gt $script:StaleAfter) {
+                if ($null -eq $quietSaid -or ((Get-Date) - $quietSaid) -ge $script:StaleAfter) {
+                    Out-Watch ("quiet: no status for {0:N0} minute(s), but the supervisor still holds the lane -- most likely one long tool call. Still following." -f $age.TotalMinutes)
+                    $quietSaid = Get-Date
+                }
+            } else { $quietSaid = $null }
+        } elseif ($goneOnce) {
+            # Twice, a poll apart: the supervisor releases the lock a moment before it writes its last
+            # line, so one empty reading can be a clean finish that has not landed in the file yet.
+            # The loop above has read the file again since, so an end line would already have returned.
+            Out-Watch 'STALE: nothing holds the lane and its ledger never said it finished, so the supervisor was killed or its window closed. Its console is the record.'
+            return 2
+        } else {
+            $goneOnce = $true
+        }
+        Start-Sleep -Seconds $script:WatchPoll
+    }
+}
+
+function Invoke-LaneCheck {
+    $holder = Get-LaneHolder -LaneWorktree $laneConfig.Worktree
+    if ($holder) {
+        Out-Watch ("running: {0} (pid {1}) since {2}" -f (Get-Field $holder 'owner' '?'), (Get-Field $holder 'pid' '?'), (Get-Field $holder 'since' '?'))
+    }
+    if (Test-Path -LiteralPath $StatusFile) {
+        $age = (Get-Date) - (Get-Item -LiteralPath $StatusFile).LastWriteTime
+        Out-Watch ("status: written {0:N0} minute(s) ago -- {1}" -f $age.TotalMinutes, (Read-TextUtf8 $StatusFile).Trim())
+    } else {
+        Out-Watch 'status: none written since the logs were last cleared.'
+    }
+    if (Test-Path -LiteralPath $laneConfig.Worktree) {
+        $dirt = Get-WorktreeDirt -Path $laneConfig.Worktree
+        if ($dirt.Lines.Count -gt 0) {
+            Out-Watch ("lane: {0} uncommitted change(s) -- a run in flight, a session started by hand, or one that died mid-work." -f $dirt.Lines.Count)
+        } else {
+            Out-Watch 'lane: clean'
+        }
+    } else {
+        Out-Watch ("lane: not seeded -- Lane.ps1 seed {0}" -f $laneConfig.Name)
+    }
+    if ($holder) { Out-Watch 'verdict: RUNNING'; return 1 }
+    Out-Watch 'verdict: NOT RUNNING'
+    return 0
+}
+
+if ($Check) { exit (Invoke-LaneCheck) }
+if ($Watch) { exit (Invoke-LaneWatch -Root $LogRoot -StatusPath $StatusFile -WaitForNew ([bool]$NewRun) -SkipWritten ([bool]$FromEnd)) }
 
 # ------------------------------------------------------------------------------- reading a run
 
@@ -226,6 +413,70 @@ function Invoke-SelfTest {
     } finally {
         Remove-Item -LiteralPath $otherWt -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $fixture -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    # The watch, over a synthetic ledger with who holds the lane stood in for.
+    $watchRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("reach-watch-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $savedPoll = $script:WatchPoll; $savedHolder = $script:HolderProbe; $savedTip = $script:TipProbe
+    try {
+        $script:WatchPoll = 0
+        $script:WatchMaxPolls = 20
+        $script:TipProbe = { $null }
+        $script:WatchLedger = Join-Path $watchRoot '2026-01-01_000000/ledger.txt'
+        $watchStatus = Join-Path $watchRoot 'status.txt'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $script:WatchLedger) -Force | Out-Null
+
+        function Set-WatchFixture { param([string[]]$Lines)
+            [System.IO.File]::WriteAllText($script:WatchLedger, (($Lines -join "`r`n") + "`r`n"))
+            [System.IO.File]::WriteAllText($watchStatus, 'lane=build run=1 :: tool  Bash')
+            # Older than the stale threshold, as a status is through one long silent tool call.
+            (Get-Item -LiteralPath $watchStatus).LastWriteTime = (Get-Date).Add(-$script:StaleAfter).AddMinutes(-5) }
+        function Invoke-CapturedWatch { param([bool]$SkipWritten = $false)
+            $script:Captured = New-Object System.Collections.Generic.List[string]
+            $code = Invoke-LaneWatch -Root $watchRoot -StatusPath $watchStatus -WaitForNew $false -SkipWritten $SkipWritten
+            $said = @($script:Captured); $script:Captured = $null
+            return [pscustomobject]@{ Code = $code; Said = $said } }
+        $started = @('[10:00:00] lane supervisor -- build -- started', '[10:00:01] === run 1 ===', '[10:00:02]   tool  Bash')
+        $finished = '[10:30:00] lane supervisor -- build -- finished after 1 run(s)'
+
+        # Held through a quiet, then finished: followed to the last line, announced once, no tool lines.
+        Set-WatchFixture $started
+        $script:Polls = 0
+        $script:HolderProbe = {
+            $script:Polls++
+            if ($script:Polls -ge 2) { [System.IO.File]::AppendAllText($script:WatchLedger, $finished + "`r`n") }
+            [pscustomobject]@{ pid = 1; owner = 'Run-Lane' } }
+        $w = Invoke-CapturedWatch
+        Assert ($w.Code -eq 0) 'a quiet supervisor still holding the lane is followed to its finish'
+        Assert (@($w.Said | Where-Object { $_ -like 'quiet:*' }).Count -eq 1) 'a quiet is announced once within its interval'
+        Assert (-not ($w.Said | Where-Object { $_ -like 'STALE:*' })) 'a quiet supervisor still holding the lane is not called stale'
+        Assert (-not ($w.Said | Where-Object { $_ -match '\btool  Bash' })) 'the per-tool lines a terminal wants are left out'
+
+        # Nothing holds the lane and the ledger never finished: stale.
+        Set-WatchFixture $started
+        $script:HolderProbe = { $null }
+        $w = Invoke-CapturedWatch
+        Assert ($w.Code -eq 2) 'a supervisor gone without its last line is stale'
+
+        # The lock released a moment before the last line lands: a finish, not a death.
+        Set-WatchFixture $started
+        $script:HolderProbe = { [System.IO.File]::AppendAllText($script:WatchLedger, $finished + "`r`n"); $null }
+        $w = Invoke-CapturedWatch
+        Assert ($w.Code -eq 0) 'a finish written just after the lock is released is a finish, not a death'
+
+        # A crash is its own code, and a re-armed watch still finds a last line written in the gap.
+        Set-WatchFixture ($started + '[10:05:00] supervisor CRASHED after 1 run(s): boom')
+        $script:HolderProbe = { $null }
+        $w = Invoke-CapturedWatch
+        Assert ($w.Code -eq 4) 'a crash is reported as a crash'
+        Set-WatchFixture ($started + $finished)
+        $w = Invoke-CapturedWatch -SkipWritten $true
+        Assert ($w.Code -eq 0) 'a re-armed watch still finds a last line written in the gap'
+    } finally {
+        $script:WatchPoll = $savedPoll; $script:HolderProbe = $savedHolder; $script:TipProbe = $savedTip
+        $script:WatchMaxPolls = 0
+        $script:Captured = $null
+        Remove-Item -LiteralPath $watchRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     # The stop request round-trips.
