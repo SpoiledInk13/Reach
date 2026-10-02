@@ -141,9 +141,11 @@ was wrong, not that the numbers belonged in the inbox.
 **A measurement is not a question, so a reading is not filed at all.** The design command is the only
 one that answers an `Open:` line and it cannot answer a number: a reading either says nothing worth
 acting on, or it says something is wrong, and finding out what is work rather than a question. Either
-way the disposition is this lane's, **and it is taken before you land**, because a reading rests on an
-instrument's state — a recorded baseline, a warm process, a scratch log — and none of that survives the
-land, so one that lands undisposed of can be diagnosed afterwards by nobody. Several readings flagging
+way the disposition is this lane's, **and it is taken when the reading flags, landed or not**: an
+instrument that needs several runs to tell a rise from noise flags after the edit has usually landed, so
+waiting for the land to happen first is no rule at all. What keeps a reading diagnosable is the lane
+keeping its instrument's state — the recorded baseline, and which run measured which revision — where it
+can read them, and tracing the step to a revision from there. Several readings flagging
 at once are one cause and not each one's own, and a measure normalized against a set is blind to a rise
 confined to part of that set, so how many flagged is a reading in itself. Seven landed as `Open:` lines
 on one walkthrough under a wording this paragraph used to carry, each with its figures to ten places;

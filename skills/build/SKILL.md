@@ -104,9 +104,10 @@ hypothesis, and its proposed fix goes stale faster than its problem.
 
 **A finding with no obvious home is still an `Open:` line, never a heading of your own.** The inbox
 matches a closed set of markers, so a new bold lead-in files into nothing however apt it reads. Where a
-measurement is the finding — something got slower, something got larger — **carry the numbers into the
-line** rather than a path to them: the file they were read from is usually untracked and per lane, and
-does not survive the lane.
+measurement is what blocks a claim, **carry the numbers into the line** rather than a path to them: the
+file they were read from is usually untracked and per lane, and does not survive the lane. A reading that
+only says something got slower or larger is never one — it is dismissed or traced by the lane whose
+instrument took it, and filed nowhere.
 
 A `built` unit may hold one only under a claim it owes; a question raised by a proven claim goes under
 the unbuilt claim it blocks.
