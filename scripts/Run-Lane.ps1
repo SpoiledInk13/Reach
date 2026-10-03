@@ -19,6 +19,17 @@
     entries are its work and nothing else's. Counting by comparing tips instead reports zero on
     exactly the runs that succeeded -- the ones that landed and fast-forwarded the lane afterwards.
 
+    Every run has background tasks disabled. A `claude -p` process ends with its turn and kills
+    whatever it left running, and a verification sweep longer than the Bash tool's ten-minute
+    foreground cap gets backgrounded. Three runs in one day did exactly that: each started its sweep,
+    said it would pick it up when it reported, and ended its turn. Each verification was killed, and
+    each verified batch waited unlanded for the next run. A rule asking the run to wait cannot fix
+    this, because the run is told it will be notified and nothing in -p ever notifies it. So
+    CLAUDE_CODE_DISABLE_BACKGROUND_TASKS removes `run_in_background` from the tool schema, and
+    BASH_MAX_TIMEOUT_MS is raised so that a whole sweep fits in one foreground call. A task killed
+    after the run's final result is still written to the ledger as KILLED AT EXIT, because that is
+    what this defect looks like if a later CLI stops honouring the variable.
+
 .PARAMETER Lane
     The lane to run, by name from process.json.
 
@@ -342,6 +353,35 @@ function Format-StreamEvent {
     return $null
 }
 
+# What every run gets: no background tasks, and a foreground Bash cap of two hours, which is room for
+# a whole verification sweep without letting one stuck call hold the lane all night. The header says why.
+$script:RunVariables = [ordered]@{
+    'CLAUDE_CODE_DISABLE_BACKGROUND_TASKS' = '1'
+    'BASH_MAX_TIMEOUT_MS'                  = '7200000'
+}
+
+function Set-RunEnvironment {
+    foreach ($name in @($script:RunVariables.Keys)) { [Environment]::SetEnvironmentVariable($name, $script:RunVariables[$name]) }
+}
+
+function Get-TasksKilledAtExit {
+    # The summary of each task stopped after the run's final result. Those were killed because the
+    # process exited. A task the run stopped itself, before its result, does not count.
+    param([string[]]$Lines)
+    $killed = New-Object System.Collections.Generic.List[string]
+    foreach ($raw in (ConvertTo-Array $Lines)) {
+        $t = ([string]$raw).Trim()
+        if (-not $t.StartsWith('{')) { continue }
+        $evt = $null
+        try { $evt = $t | ConvertFrom-Json } catch { continue }
+        if ((Get-Field $evt 'type' '') -eq 'result') { $killed.Clear(); continue }
+        if ((Get-Field $evt 'subtype' '') -ne 'task_notification') { continue }
+        if (@('stopped', 'killed') -notcontains [string](Get-Field $evt 'status' '')) { continue }
+        $killed.Add([string](Get-Field $evt 'summary' (Get-Field $evt 'task_id' '?'))) | Out-Null
+    }
+    return ,$killed.ToArray()
+}
+
 # --------------------------------------------------------------------------------- the self-test
 
 function Invoke-SelfTest {
@@ -358,6 +398,26 @@ function Invoke-SelfTest {
     Assert ((Format-StreamEvent '{"type":"result","subtype":"success"}') -eq 'done  success') 'a result renders its subtype'
     $long = '{"type":"assistant","message":{"content":[{"type":"text","text":"' + ('x' * 300) + '"}]}}'
     Assert ((Format-StreamEvent $long).Length -le 120) 'a long message is truncated rather than filling the ledger'
+
+    # A task killed at exit, in the shape a real run left: the result, then the kill. The controls are a
+    # task the run stopped itself before its result, and one that completed after it.
+    $exited = @('{"type":"system","subtype":"task_notification","task_id":"a","status":"stopped","summary":"stopped mid-run on purpose"}',
+                '{"type":"result","subtype":"success","is_error":false,"result":"The sweep is running in the background."}',
+                '{"type":"system","subtype":"task_updated","task_id":"b","patch":{"status":"killed"}}',
+                '{"type":"system","subtype":"task_notification","task_id":"b","status":"stopped","summary":"Run every tier"}',
+                '{"type":"system","subtype":"task_notification","task_id":"c","status":"completed","summary":"finished in time"}')
+    $k = Get-TasksKilledAtExit -Lines $exited
+    Assert ($k.Count -eq 1 -and $k[0] -eq 'Run every tier') 'a sweep killed at exit is named, and only it'
+    Assert ((Get-TasksKilledAtExit -Lines $exited[0..1]).Count -eq 0) 'a task the run stopped itself is not read as killed at exit'
+    $savedRun = @{}
+    foreach ($n in @($script:RunVariables.Keys)) { $savedRun[$n] = [Environment]::GetEnvironmentVariable($n) }
+    try {
+        Set-RunEnvironment
+        Assert ([Environment]::GetEnvironmentVariable('CLAUDE_CODE_DISABLE_BACKGROUND_TASKS') -eq '1') 'a run starts with background tasks disabled'
+        Assert ([int][Environment]::GetEnvironmentVariable('BASH_MAX_TIMEOUT_MS') -ge 1800000) 'a run can hold a thirty-minute sweep in the foreground'
+    } finally {
+        foreach ($n in @($savedRun.Keys)) { [Environment]::SetEnvironmentVariable($n, $savedRun[$n]) }
+    }
 
     # The decision, against a real repository, which is the part that has been wrong before.
     $fixture = Join-Path ([System.IO.Path]::GetTempPath()) ("reach-lane-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
@@ -603,6 +663,8 @@ if (Test-Path -LiteralPath $StopFile) {
     Write-Ledger '  (cleared a stop request left over from a previous loop)'
 }
 if ($DryRun) { Write-Ledger '  DRY RUN: one real but trivial agent call in place of the lane command; the zero-commit verdict halts it after one iteration.' }
+Set-RunEnvironment
+Write-Ledger ("  every run: no background tasks, foreground Bash up to {0} minutes" -f ([int]$script:RunVariables['BASH_MAX_TIMEOUT_MS'] / 60000))
 Write-Ledger ''
 
 try {
@@ -644,6 +706,11 @@ try {
         $script:CommittedThisRun = Get-LaneWorkCount -Path $laneConfig.Worktree -Branch $laneConfig.Branch -Since $started
         $elapsed = (Get-Date) - $started
         Write-Ledger ("--- run {0}: agent exit {1}, {2} commit(s), {3:hh\:mm\:ss}" -f $run, $agentCode, $script:CommittedThisRun, $elapsed)
+        if (Test-Path -LiteralPath $transcript) {
+            foreach ($k in (Get-TasksKilledAtExit -Lines (Read-LinesUtf8 $transcript))) {
+                Write-Ledger ("KILLED AT EXIT: {0} -- a background task outlived the run's turn, so whatever it was verifying did not land. CLAUDE_CODE_DISABLE_BACKGROUND_TASKS is no longer preventing this; check it against this CLI version." -f $k)
+            }
+        }
         Write-StatusLine -Run $run -Elapsed $elapsed -Event 'run finished' -StopPending (Test-Path -LiteralPath $StopFile)
 
         if ($script:CommittedThisRun -eq 0) {

@@ -62,6 +62,11 @@ Each event is a ledger line — a run starting, its verdict, what it landed — 
 the lane branch moves, or a `quiet:` line. Relay each to the owner as it arrives, in a line or two, and
 keep this window otherwise quiet.
 
+**A `KILLED AT EXIT` line is news.** It means a run backgrounded a command and its process killed the
+command when the turn ended, which the supervisor's environment exists to prevent. So a newer agent CLI
+has stopped honouring that environment, and the run's verified work is waiting for the next run. Relay
+it, and name it as the design command's, because the fix is in the supervisor.
+
 **A `quiet:` line is not a stall.** The status is written when the agent says something, and one long
 tool call — a whole verification sweep — says nothing for as long as it runs. Whether the supervisor is
 there is the lane lock's to answer, never the status file's age, so a quiet with the lock held is
