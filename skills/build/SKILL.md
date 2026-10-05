@@ -191,6 +191,11 @@ tests.
 When a unit's contract is fully implemented and proven:
 
 1. Flip its `**State:**` to `built` and update the roster row, wherever `process.json` puts it.
+   **When a check reads the state, the flip is a change to what that check asserts, so it goes in
+   before verification, never after.** A test that holds built units to more than unbuilt ones passes
+   over a tree without the flip and has verified nothing about the unit, and a gate reading documents
+   cannot see the difference. Anything committed after verification, the flip included, is verified
+   again. One flip made two minutes after a green run left the integration branch red on ten fields.
 2. **Delete the mechanism the code now expresses** — *how* a thing is done, which a reader can now
    read in the code. This is not optional tidying; it is the only thing keeping the documents from
    growing back. **Never delete a rule, a reason, or a constraint on a unit not yet built:** code
