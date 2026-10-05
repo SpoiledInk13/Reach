@@ -335,11 +335,14 @@ verdict is a stalled walkthrough rather than a note.
 
 **Before you stop, say whether the milestone command can act.** It reaches the owner nowhere else: where
 presentation is a separate lane this command cannot start, a walkthrough that is ready waits exactly as
-long as it takes a person to notice it is. The top walkthrough can be taken when what it needs is built,
-no `Open:` line stands under it, and every `Not working:` line carries a `→` line; it waits on **the
-owner** rather than on work when every one of those arrows names something built and proven. **The
-blocked case is deliberately unfiled, so no grep here will ever show it**: that command stops on
-something it needs whose unit reads `unbuilt` and is told not to file that, the state being already
+long as it takes a person to notice it is. The top walkthrough can be taken when no row it needs is
+unproven on a unit reading `unbuilt`, no `Open:` line stands under it, and every `Not working:` line
+carries a `→` line; it waits on **the owner** rather than on work when every one of those arrows names
+something built and proven. **The block is a row's, never a unit's**: a proven row is as finished on a
+unit still reading `unbuilt` as on a built one, and reading the state instead held a walkthrough whose
+every builder row was proven, behind a unit unbuilt only for rows the walkthrough never used. **The
+blocked case is deliberately unfiled, so no grep here will ever show it**: that command stops on a row
+it needs that is unproven on a unit reading `unbuilt` and is told not to file that, the state being already
 recorded and the dependency already named. Both facts exist, in two places, with nothing joining them —
 which is how one run of this command twice reported the lane free to act while the top walkthrough waited
 on an unbuilt unit. Join them yourself, or teach `Measure-Gaps.ps1` to join them and read what it says.
