@@ -67,6 +67,11 @@ command when the turn ended, which the supervisor's environment exists to preven
 has stopped honouring that environment, and the run's verified work is waiting for the next run. Relay
 it, and name it as the design command's, because the fix is in the supervisor.
 
+**A `retrying:` line is not a halt, and nothing in it is a question.** The API failed the run — a 429, or
+a 5xx such as `529 Overloaded` — so the run says nothing about the claims, and the supervisor runs again
+at the time it names, the wait doubling with each failure in a row. Relay the first, keep following, and
+say when a run gets through; a long streak is an outage the owner may want named.
+
 **A `quiet:` line is not a stall.** The status is written when the agent says something, and one long
 tool call — a whole verification sweep — says nothing for as long as it runs. Whether the supervisor is
 there is the lane lock's to answer, never the status file's age, so a quiet with the lock held is
@@ -74,7 +79,7 @@ followed and only a lock released without a last line is stale.
 
 | Exit | Means | Do |
 |---|---|---|
-| 0 | the supervisor finished: a run committed nothing, or a stop was honoured | Say which, from the lines before it. A halt on nothing committed means everything buildable is blocked on a question — name the design command as what comes next. |
+| 0 | the supervisor finished: a run succeeded and committed nothing, a run failed before committing anything, or a stop was honoured | Say which, from the lines before it. A halt on nothing committed means everything buildable is blocked on a question — name the design command as what comes next. A halt on a failed run names its failure and is nobody's question: show it with the transcript path. |
 | 4 | it crashed | Show the crash line and the log path from `-Status`. Never restart it on your own. |
 | 2 | nothing holds the lane and its ledger never said it finished | It was killed or its window was closed. Show `-Status`; the owner's window is the record. |
 | 3 | `-NewRun` saw it never start | It failed a guard before its loop, and its window says which. |

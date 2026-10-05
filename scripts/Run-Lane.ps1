@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Runs a lane unattended: a fresh agent process per run, until a run commits nothing.
+    Runs a lane unattended: a fresh agent process per run, until a run succeeds and commits nothing.
 
 .DESCRIPTION
     Each run is a NEW `claude -p` process in the lane's worktree, not another turn in one long
@@ -10,8 +10,15 @@
     documents", and a fresh process is the only thing that actually answers them. An in-session loop
     grows the same context until it compacts, which is the state those conditions exist to prevent.
 
-    It stops when a run commits nothing to the lane branch, which means every claim whose dependencies
-    are built is blocked on an answer. Past that the owner starts it and the owner stops it.
+    It stops when a run SUCCEEDS and commits nothing to the lane branch, which means every claim whose
+    dependencies are built is blocked on an answer. Past that the owner starts it and the owner stops it.
+
+    A run that FAILED committed nothing for a reason that is not the claims', so it is never read as
+    that. One the API failed -- a 429, or any 5xx such as 529 Overloaded, read off the result's typed
+    api_error_status first and its words second -- is tried again after -ServerRetryMinutes, doubling
+    with each failure in a row up to -RetryCapMinutes. One that failed any other way halts naming the
+    failure. Both builders of one lane once halted on their first run, each reporting every claim
+    blocked, when the API had answered 529 before either took a turn.
 
     Whether a run did anything is read from the lane branch's REFLOG, not from the shape of the commit
     graph. A reflog entry's subject says which operation moved the ref: the lane's own writes are
@@ -63,6 +70,13 @@
 .PARAMETER Stop
     Ask the loop to stop after the run in flight, so that run still lands.
 
+.PARAMETER ServerRetryMinutes
+    How long to wait before trying again after the API failed a run, doubled for each such failure in a
+    row. Default 5.
+
+.PARAMETER RetryCapMinutes
+    The longest that wait grows to. Default 30.
+
 .PARAMETER SelfTest
     Exercise the decision, the guards, the stop request and the renderer against synthetic input.
     Seconds, and touches nothing.
@@ -86,7 +100,9 @@ param(
     [switch]$FromEnd,
     [switch]$Stop,
     [switch]$SelfTest,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [int]$ServerRetryMinutes = 5,
+    [int]$RetryCapMinutes = 30
 )
 
 Set-StrictMode -Version Latest
@@ -382,6 +398,62 @@ function Get-TasksKilledAtExit {
     return ,$killed.ToArray()
 }
 
+# What a failure on the API's side says, read only where the result carries no api_error_status.
+$script:ServerErrorPattern = '(?i)(api error:\s*(429|5\d\d)\b|overloaded)'
+
+function Get-RunFailure {
+    # Why a run did not succeed, or $null for one that did. A failed run is evidence of nothing about
+    # the claims, so it is named rather than read as a run that built nothing.
+    #   server error  the API's own failure, a 429 or any 5xx: tried again after a backoff
+    #   failed        any other way a run ended without succeeding
+    # The typed api_error_status decides when it is there, so a 400 worded like an outage is not one.
+    param([string[]]$Lines, $ExitCode)
+    $succeeded = $false
+    $status = $null
+    $said = New-Object System.Collections.Generic.List[string]
+    foreach ($raw in (ConvertTo-Array $Lines)) {
+        $t = ([string]$raw).Trim()
+        if ($t.Length -eq 0) { continue }
+        if (-not $t.StartsWith('{')) { $said.Add($t) | Out-Null; continue }
+        $evt = $null
+        try { $evt = $t | ConvertFrom-Json } catch { $said.Add($t) | Out-Null; continue }
+        if ((Get-Field $evt 'type' '') -ne 'result') { continue }
+        if ((Get-Field $evt 'subtype' '') -eq 'success' -and -not (Get-Field $evt 'is_error' $false)) { $succeeded = $true }
+        $s = Get-Field $evt 'api_error_status' $null
+        if ($null -ne $s) { $status = [int]$s }
+        $text = Get-Field $evt 'result' ''
+        if ($text) { $said.Add([string]$text) | Out-Null }
+    }
+    if ($succeeded -and $ExitCode -eq 0) { return $null }
+    $first = "no result, exit $ExitCode"
+    if ($said.Count -gt 0) { $first = ($said[$said.Count - 1].Trim() -split "`n")[0] }
+    if ($first.Length -gt 200) { $first = $first.Substring(0, 200) + '...' }
+    if ($null -ne $status) { $server = ($status -eq 429 -or ($status -ge 500 -and $status -le 599)) }
+    else { $server = @($said | Where-Object { $_ -match $script:ServerErrorPattern }).Count -gt 0 }
+    if ($server) { return [pscustomobject]@{ Kind = 'server error'; Message = $first } }
+    return [pscustomobject]@{ Kind = 'failed'; Message = $first }
+}
+
+function Get-ServerBackoff {
+    # Minutes to wait after the Nth server error in a row: the base, doubled each time, never past the cap.
+    param([int]$Streak, [int]$Base, [int]$Cap)
+    $minutes = $Base * [Math]::Pow(2, [Math]::Max(0, $Streak - 1))
+    return [int][Math]::Min($Cap, $minutes)
+}
+
+function Get-RunVerdict {
+    # One decision, off what the run committed and how it ended.
+    #   continue  it committed something
+    #   halt      it SUCCEEDED and committed nothing: every buildable claim is blocked on an answer
+    #   retry     the API failed it: try again after a backoff, whatever it committed first
+    #   failed    it failed some other way and committed nothing: halt naming the failure
+    param([int]$Committed, $Failure)
+    if ($Failure -and $Failure.Kind -eq 'server error') { return 'retry' }
+    if ($Committed -gt 0) { return 'continue' }
+    if ($Failure) { return 'failed' }
+    return 'halt'
+}
+
 # --------------------------------------------------------------------------------- the self-test
 
 function Invoke-SelfTest {
@@ -409,6 +481,32 @@ function Invoke-SelfTest {
     $k = Get-TasksKilledAtExit -Lines $exited
     Assert ($k.Count -eq 1 -and $k[0] -eq 'Run every tier') 'a sweep killed at exit is named, and only it'
     Assert ((Get-TasksKilledAtExit -Lines $exited[0..1]).Count -eq 0) 'a task the run stopped itself is not read as killed at exit'
+
+    # A run's own failure, in the shape a real 529 left: the typed status read on its own with the words
+    # changed past the pattern, and the words on their own without it. The controls are a 400 worded like
+    # an outage, a run that succeeded while quoting one, and a run that printed nothing.
+    $overText = 'API Error: 529 Overloaded. This is a server-side issue, usually temporary.'
+    $over = '{"type":"result","subtype":"success","is_error":true,"terminal_reason":"api_error","api_error_status":529,"duration_api_ms":0,"result":"' + $overText + '"}'
+    $f = Get-RunFailure -Lines @($over) -ExitCode 1
+    Assert ($f -and $f.Kind -eq 'server error') 'a 529 Overloaded is a server error, not a blocked lane'
+    $f = Get-RunFailure -Lines @($over -replace [regex]::Escape($overText), 'Something went wrong') -ExitCode 1
+    Assert ($f -and $f.Kind -eq 'server error') 'a 529 is read off the typed status whatever its words'
+    $f = Get-RunFailure -Lines @($over -replace '"api_error_status":529,', '') -ExitCode 1
+    Assert ($f -and $f.Kind -eq 'server error') 'the 529 wording is read when the typed status is missing'
+    $f = Get-RunFailure -Lines @('{"type":"result","subtype":"success","is_error":true,"api_error_status":400,"result":"API Error: 400 Overloaded with tools"}') -ExitCode 1
+    Assert ($f -and $f.Kind -eq 'failed') 'a 400 worded like an outage is a failure, not a server error'
+    Assert ($null -eq (Get-RunFailure -Lines @('{"type":"result","subtype":"success","is_error":false,"result":"Earlier the API said 529 Overloaded."}') -ExitCode 0)) 'a run that succeeded while quoting a 529 did not fail'
+    $f = Get-RunFailure -Lines @() -ExitCode 1
+    Assert ($f -and $f.Kind -eq 'failed') 'a run that printed nothing and exited 1 failed'
+    Assert ((Get-ServerBackoff -Streak 1 -Base 5 -Cap 30) -eq 5 -and (Get-ServerBackoff -Streak 3 -Base 5 -Cap 30) -eq 20 -and (Get-ServerBackoff -Streak 9 -Base 5 -Cap 30) -eq 30) 'the backoff starts at its base, doubles, and stops at its cap'
+    $srv = [pscustomobject]@{ Kind = 'server error'; Message = 'x' }
+    $bad = [pscustomobject]@{ Kind = 'failed'; Message = 'x' }
+    Assert ((Get-RunVerdict -Committed 0 -Failure $null) -eq 'halt') 'a run that succeeded and committed nothing halts as blocked'
+    Assert ((Get-RunVerdict -Committed 2 -Failure $null) -eq 'continue') 'a run that committed continues'
+    Assert ((Get-RunVerdict -Committed 0 -Failure $srv) -eq 'retry') 'a run the API failed is retried, never halted as blocked'
+    Assert ((Get-RunVerdict -Committed 2 -Failure $srv) -eq 'retry') 'a run that committed and then met a server error waits before the next'
+    Assert ((Get-RunVerdict -Committed 0 -Failure $bad) -eq 'failed') 'a run that failed before committing halts naming the failure, not as blocked'
+    Assert ((Get-RunVerdict -Committed 1 -Failure $bad) -eq 'continue') 'a run that committed and then failed continues'
     $savedRun = @{}
     foreach ($n in @($script:RunVariables.Keys)) { $savedRun[$n] = [Environment]::GetEnvironmentVariable($n) }
     try {
@@ -652,7 +750,7 @@ Write-Ledger ("  worktree: {0}" -f $laneConfig.Worktree)
 Write-Ledger ("  command:  {0}" -f $laneConfig.Command)
 Write-Ledger ("  agent:    {0}" -f $permission)
 Write-Ledger ("  log:      {0}" -f $logDir)
-Write-Ledger  '  ends when a run commits nothing, or you stop it.'
+Write-Ledger  '  ends when a run succeeds and commits nothing, when one fails, or you stop it; a run the API failed is retried.'
 Write-Ledger ("  watch:    Run-Lane.ps1 {0} -Status -Follow" -f $laneConfig.Name)
 Write-Ledger ("  stop:     Run-Lane.ps1 {0} -Stop" -f $laneConfig.Name)
 if (-not $unattended -and -not $DryRun) {
@@ -666,6 +764,9 @@ if ($DryRun) { Write-Ledger '  DRY RUN: one real but trivial agent call in place
 Set-RunEnvironment
 Write-Ledger ("  every run: no background tasks, foreground Bash up to {0} minutes" -f ([int]$script:RunVariables['BASH_MAX_TIMEOUT_MS'] / 60000))
 Write-Ledger ''
+
+# Server errors in a row, which the backoff doubles over; any other verdict resets it.
+$script:ServerStreak = 0
 
 try {
     while ($true) {
@@ -713,7 +814,30 @@ try {
         }
         Write-StatusLine -Run $run -Elapsed $elapsed -Event 'run finished' -StopPending (Test-Path -LiteralPath $StopFile)
 
-        if ($script:CommittedThisRun -eq 0) {
+        $lines = @()
+        if (Test-Path -LiteralPath $transcript) { $lines = Read-LinesUtf8 $transcript }
+        $failure = Get-RunFailure -Lines $lines -ExitCode $agentCode
+        $verdict = Get-RunVerdict -Committed $script:CommittedThisRun -Failure $failure
+        if ($verdict -eq 'retry') {
+            $script:ServerStreak++
+            $minutes = Get-ServerBackoff -Streak $script:ServerStreak -Base $ServerRetryMinutes -Cap $RetryCapMinutes
+            $until = (Get-Date).AddMinutes($minutes)
+            Write-Ledger ("retrying: the API failed run {0} ({1}). That is the server's, not the claims', so it runs again at {2}, failure {3} in a row." -f $run, $failure.Message, $until.ToString('HH:mm'), $script:ServerStreak)
+            # In short sleeps, so a stop is honoured within a tick and a watcher reads a supervisor that is
+            # waiting rather than one gone quiet.
+            while ((Get-Date) -lt $until -and -not (Test-Path -LiteralPath $StopFile)) {
+                Write-StatusLine -Run $run -Elapsed ((Get-Date) - $started) -Event ("waiting on the API until {0}" -f $until.ToString('HH:mm')) -StopPending $false
+                Start-Sleep -Seconds 15
+            }
+            continue
+        }
+        $script:ServerStreak = 0
+        if ($verdict -eq 'failed') {
+            Write-Ledger ''
+            Write-Ledger ("halting: run {0} failed before it committed anything ({1}), which says nothing about the claims. Read its transcript -- this is not a question for the ideate command." -f $run, $failure.Message)
+            break
+        }
+        if ($verdict -eq 'halt') {
             Write-Ledger ''
             Write-Ledger ("halting: run {0} committed nothing. Every claim whose dependencies are built is blocked on an answer -- that is a question for the ideate command, not a reason to run again." -f $run)
             break
