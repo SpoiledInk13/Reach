@@ -19,6 +19,8 @@
     Verbs: seed, sync, claim, release, status, remove.
 
       Lane.ps1 seed build          create the worktree and branch, and warm it
+      Lane.ps1 seed build-1        a builder of `build`, where `build` declares `builders` -- its
+                                   own worktree and branch, and not the integrator's harness
       Lane.ps1 sync build          bring the integration branch into the lane
       Lane.ps1 sync -Primary       bring it into the primary checkout, which nothing else syncs
       Lane.ps1 claim build         hold the lane for the agent session running this
@@ -270,35 +272,48 @@ function Invoke-Status {
 
     foreach ($name in $names) {
         $lane = Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name $name
-        if (-not (Test-Path -LiteralPath $lane.Worktree)) {
-            Write-Host ("  {0,-12} not seeded" -f $name) -ForegroundColor DarkGray
-            continue
+        Write-LaneStatus -Lane $lane
+        # A lane sharing its work lists every builder seeded for it, so a builder is never invisible
+        # here while it holds units and marks tips ready.
+        foreach ($builder in (Get-BuilderLanes -Process $Process -RepoRoot $RepoRoot -Name $name)) {
+            Write-LaneStatus -Lane $builder
         }
-
-        $branch = Get-GitValue -Path $lane.Worktree -Arguments @('rev-parse', '--abbrev-ref', 'HEAD')
-        $dirty = Get-WorktreeDirt -Path $lane.Worktree
-        $counts = Get-GitValue -Path $lane.Worktree -Arguments @('rev-list', '--left-right', '--count', "$($integration.Branch)...HEAD")
-
-        $notes = New-Object System.Collections.Generic.List[string]
-        if ($branch -ne $lane.Branch) { $notes.Add("on '$branch', expected '$($lane.Branch)'") | Out-Null }
-        if ($dirty.Lines.Count -gt 0) { $notes.Add("$($dirty.Lines.Count) uncommitted") | Out-Null }
-        if ($counts) {
-            $parts = $counts -split '\s+'
-            if ($parts.Count -ge 2) {
-                if ([int]$parts[0] -gt 0) { $notes.Add("$($parts[0]) behind") | Out-Null }
-                if ([int]$parts[1] -gt 0) { $notes.Add("$($parts[1]) to land") | Out-Null }
-            }
-        }
-        $lockPath = Get-LockPath $lane.Worktree
-        if (Test-Path -LiteralPath $lockPath) {
-            $holder = Get-LaneHolder -LaneWorktree $lane.Worktree
-            if ($holder) { $notes.Add(("held by {0} (pid {1})" -f (Get-Field $holder 'owner' '?'), (Get-Field $holder 'pid' '?'))) | Out-Null }
-            else { $notes.Add('stale lock -- its process is gone, and the next claim takes it') | Out-Null }
-        }
-
-        $colour = if ($branch -ne $lane.Branch) { 'Red' } elseif ($notes.Count -gt 0) { 'Yellow' } else { 'Green' }
-        Write-Host ("  {0,-12} {1,-10} {2}" -f $name, $branch, ($notes -join ', ')) -ForegroundColor $colour
     }
+}
+
+function Write-LaneStatus {
+    param($Lane)
+    if (-not (Test-Path -LiteralPath $Lane.Worktree)) {
+        Write-Host ("  {0,-12} not seeded" -f $Lane.Name) -ForegroundColor DarkGray
+        return
+    }
+
+    $branch = Get-GitValue -Path $Lane.Worktree -Arguments @('rev-parse', '--abbrev-ref', 'HEAD')
+    $dirty = Get-WorktreeDirt -Path $Lane.Worktree
+    $counts = Get-GitValue -Path $Lane.Worktree -Arguments @('rev-list', '--left-right', '--count', "$($integration.Branch)...HEAD")
+
+    $notes = New-Object System.Collections.Generic.List[string]
+    if ($branch -ne $Lane.Branch) { $notes.Add("on '$branch', expected '$($Lane.Branch)'") | Out-Null }
+    if ($dirty.Lines.Count -gt 0) { $notes.Add("$($dirty.Lines.Count) uncommitted") | Out-Null }
+    if ($counts) {
+        $parts = $counts -split '\s+'
+        if ($parts.Count -ge 2) {
+            if ([int]$parts[0] -gt 0) { $notes.Add("$($parts[0]) behind") | Out-Null }
+            # A builder never lands, so what it has is for the integrator to merge, not to land.
+            $ahead = 'to land'
+            if ($Lane.Builder -gt 0) { $ahead = 'not yet integrated' }
+            if ([int]$parts[1] -gt 0) { $notes.Add("$($parts[1]) $ahead") | Out-Null }
+        }
+    }
+    $lockPath = Get-LockPath $Lane.Worktree
+    if (Test-Path -LiteralPath $lockPath) {
+        $holder = Get-LaneHolder -LaneWorktree $Lane.Worktree
+        if ($holder) { $notes.Add(("held by {0} (pid {1})" -f (Get-Field $holder 'owner' '?'), (Get-Field $holder 'pid' '?'))) | Out-Null }
+        else { $notes.Add('stale lock -- its process is gone, and the next claim takes it') | Out-Null }
+    }
+
+    $colour = if ($branch -ne $Lane.Branch) { 'Red' } elseif ($notes.Count -gt 0) { 'Yellow' } else { 'Green' }
+    Write-Host ("  {0,-12} {1,-10} {2}" -f $Lane.Name, $branch, ($notes -join ', ')) -ForegroundColor $colour
 }
 
 # ------------------------------------------------------------------------------- claim and release

@@ -84,6 +84,15 @@ if ($Lane) {
     $tipRef = $Branch
 }
 
+# A builder never lands, by lane name or by its branch: what it proved is every tier that needs no
+# harness, and the rest runs in the integrator's sweep over the merged batch. A builder's tip that
+# lands straight onto integration skips exactly the tiers the split exists to run once.
+$asLane = Get-LaneOfBranch -Process $Process -RepoRoot $RepoRoot -Branch $tipRef
+if ($asLane -and $asLane.Builder -gt 0) {
+    Write-Host ("REFUSED: '{0}' is a builder of '{1}', and a builder never lands. Mark its tip ready (Builders.ps1 ready); the integrator merges it, sweeps every tier, and lands the batch." -f $asLane.Name, $asLane.Integrator) -ForegroundColor Red
+    exit 2
+}
+
 # Landing the integration branch into itself is not a merge, it is a loop. Worth naming, because
 # `-Branch develop` is an easy thing to type while thinking about publishing.
 if ($tipRef -eq $integration.Branch) {

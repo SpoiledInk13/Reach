@@ -252,7 +252,10 @@ function Get-LaneWorkCount {
     foreach ($line in $result.Lines) {
         $parts = $line -split '\|', 3
         if ($parts.Count -lt 3) { continue }
-        if ($parts[2] -notmatch '^commit') { continue }
+        # An integrator merging a builder's ready tip is its work too: a run that only integrates
+        # writes no `commit` entry, and reading it as idle halts the lane that lands the builders.
+        # A sync of the integration branch is a merge as well, and is never counted.
+        if ($parts[2] -notmatch '^commit' -and $parts[2] -notmatch '^merge refs/ready/') { continue }
         $when = [datetimeoffset]::MinValue
         if (-not [datetimeoffset]::TryParse($parts[1], [ref]$when)) { continue }
         if ($when -lt $floor) { continue }
@@ -268,23 +271,64 @@ function Get-LaneConfig {
         One lane by name, with its paths resolved against the repository. A lane's worktree is
         written relative to the repository root in process.json so the file stays portable between
         machines and checkouts.
+
+        A lane that declares `builders` also answers for `<name>-1`, `<name>-2`, ...: its BUILDER
+        lanes, derived rather than listed, because how many there are is how many the owner seeded.
+        A builder runs the lane's command with `builder` after it, on a branch and worktree of its
+        own, and it is not warmed with the lane's harness unless `builders.warm` says otherwise --
+        the scarce verifier is the reason one lane integrates and the rest only build.
     #>
     param($Process, [string]$RepoRoot, [string]$Name)
-    foreach ($lane in (ConvertTo-Array (Get-Field $Process 'lanes' @()))) {
+    $lanes = ConvertTo-Array (Get-Field $Process 'lanes' @())
+    foreach ($lane in $lanes) {
         if ((Get-Field $lane 'name' '') -ne $Name) { continue }
-
-        $relative = Get-Field $lane 'worktree' ("../" + (Split-Path -Leaf $RepoRoot) + "-lanes/$Name")
-        $full = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot $relative))
+        return (New-LaneConfig -Lane $lane -RepoRoot $RepoRoot -Name $Name)
+    }
+    if ($Name -notmatch '^(?<base>.+)-(?<n>[1-9][0-9]*)$') { return $null }
+    $base = $Matches['base']
+    $n = [int]$Matches['n']
+    foreach ($lane in $lanes) {
+        if ((Get-Field $lane 'name' '') -ne $base) { continue }
+        $builders = Get-Field $lane 'builders' $null
+        if (-not $builders) { return $null }
+        $integrator = New-LaneConfig -Lane $lane -RepoRoot $RepoRoot -Name $base
+        $pattern = Get-Field $builders 'worktree' $null
+        $worktree = if ($pattern) {
+            [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ($pattern -replace '\{n\}', [string]$n)))
+        } else {
+            "$($integrator.Worktree)-$n"
+        }
+        $command = ''
+        if ($integrator.Command) { $command = "$($integrator.Command) builder" }
         return [pscustomobject]@{
-            Name      = $Name
-            Branch    = Get-Field $lane 'branch' $Name
-            Worktree  = $full
-            Command   = Get-Field $lane 'command' ''
-            Warm      = Get-Field $lane 'warm' $null
-            Unattended = [bool](Get-Field $lane 'unattended' $false)
+            Name        = $Name
+            Branch      = "$($integrator.Branch)-$n"
+            Worktree    = $worktree
+            Command     = $command
+            Warm        = Get-Field $builders 'warm' $null
+            Unattended  = $integrator.Unattended
+            Builder     = $n
+            Integrator  = $base
+            HasBuilders = $false
         }
     }
     return $null
+}
+
+function New-LaneConfig {
+    param($Lane, [string]$RepoRoot, [string]$Name)
+    $relative = Get-Field $Lane 'worktree' ("../" + (Split-Path -Leaf $RepoRoot) + "-lanes/$Name")
+    return [pscustomobject]@{
+        Name        = $Name
+        Branch      = Get-Field $Lane 'branch' $Name
+        Worktree    = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot $relative))
+        Command     = Get-Field $Lane 'command' ''
+        Warm        = Get-Field $Lane 'warm' $null
+        Unattended  = [bool](Get-Field $Lane 'unattended' $false)
+        Builder     = 0
+        Integrator  = $Name
+        HasBuilders = [bool](Get-Field $Lane 'builders' $null)
+    }
 }
 
 function Get-LaneNames {
@@ -298,6 +342,146 @@ function Get-LaneNames {
     # .Count on a scalar string throws under StrictMode. A project with exactly one lane is the
     # common case, so this is the path that breaks first.
     return ,$names.ToArray()
+}
+
+# -------------------------------------------------------------------------------------- builders
+#
+# A lane declaring `builders` runs as one INTEGRATOR -- the only lane holding the scarce verifier,
+# and the only one that lands -- and any number of BUILDERS, which prove every tier that needs no
+# such harness and mark the tip they proved ready. Three facts pass between them, kept under the
+# shared git directory so every worktree reads the same ones and none is ever committed:
+#
+#   a claim      one builder or integrator per unit, taken atomically before writing in it
+#   ready        refs/ready/<builder>, the tip a builder proved and wants landed
+#   a rejection  the integrator sending a ready tip back, keyed by the tip, so the next ready tip
+#                supersedes it
+
+function Get-BuilderLanes {
+    # The builder lanes of one integrator that are seeded: a branch `<branch>-<n>` with its worktree.
+    param($Process, [string]$RepoRoot, [string]$Name)
+    $integrator = Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name $Name
+    if (-not $integrator -or -not $integrator.HasBuilders) { return }
+    $refs = Invoke-Git -Path $RepoRoot -Arguments @('for-each-ref', '--format=%(refname:strip=2)', "refs/heads/$($integrator.Branch)-*")
+    $found = New-Object System.Collections.Generic.List[object]
+    foreach ($ref in $refs.Lines) {
+        if ($ref -notmatch ('^' + [regex]::Escape($integrator.Branch) + '-([1-9][0-9]*)$')) { continue }
+        $builder = Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name "$Name-$($Matches[1])"
+        if ($builder -and (Test-Path -LiteralPath $builder.Worktree)) { $found.Add($builder) | Out-Null }
+    }
+    # Each item on its own: callers wrap this in @(), which a comma-wrapped array would nest.
+    $sorted = @($found.ToArray() | Sort-Object Builder)
+    return $sorted
+}
+
+function Get-LaneOfBranch {
+    # Which lane a branch is -- a declared lane, or a builder of one -- or nothing.
+    param($Process, [string]$RepoRoot, [string]$Branch)
+    if (-not $Branch) { return $null }
+    foreach ($lane in (ConvertTo-Array (Get-Field $Process 'lanes' @()))) {
+        $name = Get-Field $lane 'name' ''
+        $config = Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name $name
+        if (-not $config) { continue }
+        if ($config.Branch -eq $Branch) { return $config }
+        if ($config.HasBuilders -and $Branch -match ('^' + [regex]::Escape($config.Branch) + '-([1-9][0-9]*)$')) {
+            return (Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name "$name-$($Matches[1])")
+        }
+    }
+    return $null
+}
+
+function Get-BuilderStateDir {
+    param([string]$RepoRoot)
+    $common = Get-GitValue -Path $RepoRoot -Arguments @('rev-parse', '--path-format=absolute', '--git-common-dir')
+    if (-not $common) { throw "'$RepoRoot' is not a git checkout" }
+    $dir = Join-Path $common 'reach-builders'
+    foreach ($d in @($dir, (Join-Path $dir 'claims'), (Join-Path $dir 'rejected'))) {
+        if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+    }
+    return $dir
+}
+
+function Read-BuilderRecord {
+    # Two lines: who (or which tip), then when (or why).
+    param([string]$Path)
+    $lines = @((Read-TextUtf8 $Path) -split "`r?`n" | Where-Object { $_ -ne '' })
+    $first = ''; $rest = ''
+    if ($lines.Count -gt 0) { $first = $lines[0].Trim() }
+    if ($lines.Count -gt 1) { $rest = ($lines[1..($lines.Count - 1)] -join ' ').Trim() }
+    return [pscustomobject]@{ First = $first; Rest = $rest }
+}
+
+function Get-ReadyTip {
+    param([string]$RepoRoot, [string]$Name)
+    return (Get-GitValue -Path $RepoRoot -Arguments @('rev-parse', '--verify', '--quiet', "refs/ready/$Name"))
+}
+
+function Get-RejectionOf {
+    # A rejection stands only while the ready tip is the one it names.
+    param([string]$RepoRoot, [string]$StateDir, [string]$Name)
+    $path = Join-Path $StateDir "rejected/$Name"
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+    $record = Read-BuilderRecord $path
+    if ($record.First -ne (Get-ReadyTip -RepoRoot $RepoRoot -Name $Name)) { return $null }
+    return $record
+}
+
+function Get-PendingTips {
+    # What the integrator has to merge: a ready tip not already on integration and not sent back.
+    param([string]$RepoRoot, [string]$StateDir, [string]$IntegrationBranch)
+    $refs = Invoke-Git -Path $RepoRoot -Arguments @('for-each-ref', '--format=%(refname:strip=2) %(objectname) %(subject)', 'refs/ready/')
+    $pending = New-Object System.Collections.Generic.List[object]
+    foreach ($line in $refs.Lines) {
+        if (-not $line) { continue }
+        $name, $sha, $subject = $line -split ' ', 3
+        $landed = (Invoke-Git -Path $RepoRoot -Arguments @('merge-base', '--is-ancestor', $sha, $IntegrationBranch)).Code -eq 0
+        if ($landed) { continue }
+        if ($null -ne (Get-RejectionOf -RepoRoot $RepoRoot -StateDir $StateDir -Name $name)) { continue }
+        $pending.Add([pscustomobject]@{ Lane = $name; Sha = $sha; Subject = $subject }) | Out-Null
+    }
+    return $pending.ToArray()
+}
+
+function Get-TipState {
+    # One word for the supervisor's waits: none, pending or rejected.
+    param([string]$RepoRoot, [string]$StateDir, [string]$IntegrationBranch, [string]$Name)
+    if ($null -ne (Get-RejectionOf -RepoRoot $RepoRoot -StateDir $StateDir -Name $Name)) { return 'rejected' }
+    foreach ($tip in (Get-PendingTips -RepoRoot $RepoRoot -StateDir $StateDir -IntegrationBranch $IntegrationBranch)) {
+        if ($tip.Lane -eq $Name) { return 'pending' }
+    }
+    return 'none'
+}
+
+function Get-CueVerdict {
+    <#
+        What a run that committed nothing means once an integrator and its builders run side by side,
+        which is not always a blocked backlog:
+
+          idle     the integrator has nothing of its own, but a builder is still running or a ready
+                   tip is waiting: it waits for one rather than halting
+          waiting  a builder whose ready tip is with the integrator: nothing to do until that tip
+                   lands or comes back
+          halt     nothing to wait for -- the answer that was the only answer before builders
+
+        A builder whose tip was ALREADY sent back when its run ended had its chance to fix it and did
+        not, so it halts rather than looping on the same refusal.
+    #>
+    param([int]$Builder, [int]$LiveBuilders, [int]$Pending, [string]$TipState)
+    if ($Builder -le 0) {
+        if ($LiveBuilders -gt 0 -or $Pending -gt 0) { return 'idle' }
+        return 'halt'
+    }
+    if ($TipState -eq 'pending') { return 'waiting' }
+    return 'halt'
+}
+
+function Get-LiveBuilders {
+    # The builders of an integrator whose lane something holds: a supervisor or a session.
+    param($Process, [string]$RepoRoot, [string]$Name)
+    $live = New-Object System.Collections.Generic.List[string]
+    foreach ($builder in (Get-BuilderLanes -Process $Process -RepoRoot $RepoRoot -Name $Name)) {
+        if (Get-LaneHolder -LaneWorktree $builder.Worktree) { $live.Add($builder.Name) | Out-Null }
+    }
+    return $live.ToArray()
 }
 
 function Get-Integration {

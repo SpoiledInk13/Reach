@@ -21,6 +21,11 @@ because syncing the lane rewrites the scripts the loop is running.
 
 Read the arguments as an action and a lane. No action means `start`; no lane means `build`.
 
+**A lane that declares `builders` is run as a set**: the integrator, and every builder seeded for it —
+`<lane>-1`, `<lane>-2`, … as `lane status` lists them. Every step below runs once per lane of the set, and
+each relayed line names its lane. **Start the integrator first**: a builder's ready tip waits on it. A
+builder that is not seeded is not a lane, and is skipped; seeding one is the owner's call.
+
 | Action | Does |
 |---|---|
 | `start` | check, pre-flight, launch, follow — or follow, if one is already running |
@@ -69,6 +74,11 @@ moment. One whose claim integration has already answered (`git log --grep "Answe
 line the lane kept over its answer, which the next run will park on again; name it as that, so the owner
 starts the design command rather than learning it from a lane that stopped.
 
+**An idle verdict is not a halt.** The integrator says `IDLE` when it has nothing of its own while a
+builder is running, and a builder says `WAITING` while its ready tip is with the integrator; each then
+starts a run on its own when its cue arrives — a tip marked ready, a tip landed or sent back. Relay it
+once, and keep following.
+
 **A `KILLED AT EXIT` line is news.** It means a run backgrounded a command and its process killed the
 command when the turn ended, which the supervisor's environment exists to prevent. So a newer agent CLI
 has stopped honouring that environment, and the run's verified work is waiting for the next run. Relay
@@ -86,7 +96,7 @@ followed and only a lock released without a last line is stale.
 
 | Exit | Means | Do |
 |---|---|---|
-| 0 | the supervisor finished: a run succeeded and committed nothing, a run failed before committing anything, or a stop was honoured | Say which, from the lines before it. A halt on nothing committed means everything buildable is blocked on a question — name the design command as what comes next. A halt on a failed run names its failure and is nobody's question: show it with the transcript path. |
+| 0 | the supervisor finished: a run succeeded and committed nothing with nothing to wait for, a run failed before committing anything, or a stop was honoured | Say which, from the lines before it. A halt on nothing committed means everything buildable is blocked on a question — name the design command as what comes next; a builder's halt over units all held or all needing the integrator's harness is not one, and says so. A halt on a failed run names its failure and is nobody's question: show it with the transcript path. |
 | 4 | it crashed | Show the crash line and the log path from `-Status`. Never restart it on your own. |
 | 2 | nothing holds the lane and its ledger never said it finished | It was killed or its window was closed. Show `-Status`; the owner's window is the record. |
 | 3 | `-NewRun` saw it never start | It failed a guard before its loop, and its window says which. |

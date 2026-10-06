@@ -170,6 +170,14 @@ Scripts/reach.ps1 lane seed build
 On a repository you do not own, do none of this. Set `integration.mode` to `push`: lanes still isolate
 the work, and landing stays with the reviewers.
 
+**Builders are for a project whose expensive tier needs a harness only one checkout can hold**, and
+nothing else. Ask what holds the slow tier — an editor, an emulator, a device, a warm database — and
+whether two of them fit on this machine. Where one does and most evidence needs none, the build lane
+declares `"builders": {}` and each tier that needs the harness `"builders": false`; then
+`lane seed build-1` makes a builder that proves the rest beside the lane holding it (the build command's
+**The integrator and the builders**). Where every tier runs anywhere, builders buy nothing that a second
+lane would not, and add a merge step: leave them out.
+
 Then copy `templates/reach.ps1` from the plugin into the repository as `Scripts/reach.ps1` and commit
 it. The plugin's scripts live at a path carrying its version number, so it moves on every update and
 nothing may hard-code it; that file resolves the installed plugin at run time and is what the owner

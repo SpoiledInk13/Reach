@@ -217,6 +217,26 @@ it published nothing. Set `integration.publish` to `false` to turn it off, or
 On a repository you do not own, set `integration.mode` to `push`: lanes still isolate the work, and
 landing stays with the reviewers.
 
+**Builders, when one harness is the bottleneck.** If your slow tier needs something only one checkout
+can hold — an editor, an emulator, a device — while most of your evidence needs none of it, the build
+lane can declare `"builders": {}` and mark each tier that needs the harness `"builders": false`. Then
+`lane seed build-1` (and `build-2`, …) makes **builders**: lanes of their own, not warmed with the
+harness, that prove every other tier and mark the tip they proved ready. The build lane becomes the
+**integrator** — it merges the ready tips, sweeps every tier once over the batch, and lands; a builder
+never lands, and `land` refuses one.
+
+```shell
+pwsh Scripts/reach.ps1 builders take combat      # one lane per unit, taken before writing in it
+pwsh Scripts/reach.ps1 builders ready            # inside a builder: mark its proven HEAD ready
+pwsh Scripts/reach.ps1 builders pending          # what the integrator has to merge
+pwsh Scripts/reach.ps1 builders reject build-1 -Reason "tier B red: ..."
+```
+
+Measured on the project this was built in: proven rows per day rose from about 65 in the week before
+two builders to about 240 in their first two days. Not all of that is the split's — the day before it
+already reached 156 — but most of what landed came in through the builders' ready tips. Leave builders
+out where every tier runs anywhere: a second lane buys the same parallelism without the merge step.
+
 ### 5. Unattended — one lane, running itself
 
 ```shell
@@ -225,7 +245,12 @@ pwsh Scripts/reach.ps1 run build -Status -Follow    # from another terminal
 pwsh Scripts/reach.ps1 run build -Check     # is anything holding the lane? exit 1 if so
 pwsh Scripts/reach.ps1 run build -Watch     # what each run landed, as short events
 pwsh Scripts/reach.ps1 run build -Stop      # finishes the run in flight, then stops
+pwsh Scripts/reach.ps1 run build-1          # a builder: runs the build command as a builder
 ```
+
+With builders, the integrator says `IDLE` rather than halting while a builder still runs, and a builder
+says `WAITING` while its ready tip is with the integrator; each starts its next run when its cue
+arrives.
 
 Or from inside Claude Code: **`/reach:iterate`** checks nothing holds the lane, launches the supervisor
 in its own window, and follows it — relaying what each run lands and stopping it when you ask. That
@@ -430,9 +455,9 @@ One file at your repository root. Everything reads it.
 | `human` | `{ doc, noun, layer }` — the walkthrough document `/reach:milestone` reads, and the presentation layer it owns outright. Omit `layer` and it owns no code; omit the key entirely if nothing needs a person to judge it |
 | `adoption` | the adoption work list, while one exists |
 | `unmaintained` | directories no link check should read |
-| `tiers` | ordered, cheapest first: `{ id, what, run, requires, proves, cost, human }` |
+| `tiers` | ordered, cheapest first: `{ id, what, run, requires, proves, cost, human, builders }` — `builders: false` leaves a tier to the integrator |
 | `integration` | `{ branch, primary, mode, remote }` — where lanes land. `mode` is `objects` or `push` |
-| `lanes` | `[{ name, branch, worktree, command, warm, unattended }]` — `warm` takes `{ run }` or `{ copy }` |
+| `lanes` | `[{ name, branch, worktree, command, warm, unattended, builders }]` — `warm` takes `{ run }` or `{ copy }`; `builders` takes `{ worktree, warm }`, the worktree a pattern with `{n}` (default: the lane's, plus `-<n>`) |
 | `reach` | the plugin version this repository was set up against, so `audit` can measure the gap |
 
 ```json

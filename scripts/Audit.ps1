@@ -161,6 +161,18 @@ if ($lanes.Count -eq 0) {
 $shim = Join-Path $RepoRoot 'Scripts/reach.ps1'
 if (-not (Test-Path -LiteralPath $shim)) {
     Add-Gap 'no Scripts/reach.ps1' 'Every documented command names a path that moves with the plugin version.' 'copy templates/reach.ps1 from the plugin and commit it'
+} else {
+    # The shim is copied once, so a verb the plugin adds later is one it refuses with "say which",
+    # which reads as a typo rather than an old copy.
+    $template = Join-Path (Split-Path -Parent $PSScriptRoot) 'templates/reach.ps1'
+    if (Test-Path -LiteralPath $template) {
+        $verbPattern = "(?m)^\s*'([a-z-]+)'\s*=\s*'[A-Za-z-]+\.ps1'"
+        $have = @([regex]::Matches((Read-TextUtf8 $shim), $verbPattern) | ForEach-Object { $_.Groups[1].Value })
+        $missing = @([regex]::Matches((Read-TextUtf8 $template), $verbPattern) | ForEach-Object { $_.Groups[1].Value } | Where-Object { $have -notcontains $_ })
+        if ($missing.Count -gt 0) {
+            Add-Gap ("Scripts/reach.ps1 does not route: {0}" -f ($missing -join ', ')) 'It was copied from an older plugin, and refuses those verbs as unknown.' 'copy templates/reach.ps1 from the plugin again and commit it'
+        }
+    }
 }
 
 $spine = Get-Field $Process 'spine' $null

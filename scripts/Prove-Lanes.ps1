@@ -30,6 +30,8 @@ $Lane = Join-Path $PSScriptRoot 'Lane.ps1'
 $Land = Join-Path $PSScriptRoot 'Land.ps1'
 $Run  = Join-Path $PSScriptRoot 'Run-Lane.ps1'
 $Publish = Join-Path $PSScriptRoot 'Publish.ps1'
+$Builders = Join-Path $PSScriptRoot 'Builders.ps1'
+$VerifyAll = Join-Path $PSScriptRoot 'Verify-All.ps1'
 $Made = New-Object System.Collections.Generic.List[string]
 
 function Add-Remote {
@@ -43,7 +45,7 @@ function Add-Remote {
 }
 
 function New-Fixture {
-    param([string]$Mode = 'objects', [string]$LaneDir = 'build', [switch]$PublishAll)
+    param([string]$Mode = 'objects', [string]$LaneDir = 'build', [switch]$PublishAll, [switch]$Builders)
     $root = Join-Path ([System.IO.Path]::GetTempPath()) ("reach-lane-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
     $repo = Join-Path $root 'repo'
     New-Item -ItemType Directory -Path $repo -Force | Out-Null
@@ -55,11 +57,28 @@ function New-Fixture {
 
     $integration = @{ branch = 'develop'; primary = 'working'; mode = $Mode; remote = 'origin' }
     if ($PublishAll) { $integration['publishAll'] = $true }
+    $lane = @{ name = 'build'; branch = 'build'; worktree = "../lanes/$LaneDir"; command = '/reach:build' }
     $config = @{
         project     = 'fixture'
         integration = $integration
-        lanes       = @(@{ name = 'build'; branch = 'build'; worktree = "../lanes/$LaneDir"; command = '/reach:build' })
-    } | ConvertTo-Json -Depth 6
+        lanes       = @($lane)
+    }
+    if ($Builders) {
+        # The integrator's harness is a file its warm step writes, so a builder seeded with it shows.
+        $lane['builders'] = @{}
+        $lane['warm'] = @{ run = 'echo warm> warmed.txt' }
+        $config['unit'] = @{ noun = 'system'; dir = 'Docs/units' }
+        $config['tiers'] = @(
+            @{ id = 'A'; what = 'pure logic'; run = 'exit 0' },
+            @{ id = 'B'; what = 'needs the harness'; run = 'exit 1'; builders = $false }
+        )
+        New-Item -ItemType Directory -Path (Join-Path $repo 'Docs/units') -Force | Out-Null
+        foreach ($unit in @('combat', 'vessel')) {
+            [System.IO.File]::WriteAllText((Join-Path $repo "Docs/units/$unit.md"), "# $unit`n", (New-Object System.Text.UTF8Encoding($false)))
+        }
+        [System.IO.File]::WriteAllText((Join-Path $repo '.gitignore'), "warmed.txt`n", (New-Object System.Text.UTF8Encoding($false)))
+    }
+    $config = $config | ConvertTo-Json -Depth 6
     [System.IO.File]::WriteAllText((Join-Path $repo 'process.json'), $config, (New-Object System.Text.UTF8Encoding($false)))
     [System.IO.File]::WriteAllText((Join-Path $repo 'a.txt'), "one`n", (New-Object System.Text.UTF8Encoding($false)))
     Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
@@ -570,6 +589,22 @@ Test-Control 'land refuses naming both a lane and a branch, or neither' {
 
 # ------------------------------------------------------------------------------------ the audit
 
+Test-Control 'audit names a verb an old shim does not route, and nothing for a current one' {
+    $repo = New-Fixture
+    $scripts = Join-Path $repo 'Scripts'
+    New-Item -ItemType Directory -Path $scripts -Force | Out-Null
+    $template = Read-TextUtf8 (Join-Path (Split-Path -Parent $PSScriptRoot) 'templates/reach.ps1')
+    [System.IO.File]::WriteAllText((Join-Path $scripts 'reach.ps1'), $template, (New-Object System.Text.UTF8Encoding($false)))
+    $current = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $repo)
+    if ($current.Output -match 'does not route') { return "a current shim was reported: $($current.Output)" }
+    $old = $template -replace "(?m)^\s*'builders'\s*=\s*'Builders\.ps1'\r?\n", ''
+    if ($old -eq $template) { return 'the fixture could not remove a verb, so the control reads nothing' }
+    [System.IO.File]::WriteAllText((Join-Path $scripts 'reach.ps1'), $old, (New-Object System.Text.UTF8Encoding($false)))
+    $stale = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $repo)
+    if ($stale.Output -notmatch 'does not route: builders') { return "an old shim was not named: $($stale.Output)" }
+    return $true
+}
+
 Test-Control 'audit reports an unseeded lane and a missing shim' {
     $repo = New-Fixture
     $audit = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $repo)
@@ -943,6 +978,223 @@ Test-Control 'the supervisor refuses a lane a session holds' {
         if ($supervise.Output -notmatch 'already held') { return "refused for another reason: $($supervise.Output)" }
     } finally {
         Stop-Process -Id $session.Id -Force -ErrorAction SilentlyContinue
+    }
+    return $true
+}
+
+# ------------------------------------------------------------------------------------- builders
+
+function New-BuilderFixture {
+    # An integrator declaring builders, with it and two builders seeded. Returns the paths.
+    $repo = New-Fixture -Builders
+    foreach ($name in @('build', 'build-1', 'build-2')) { Invoke-Script $Lane @('seed', $name, '-Root', $repo) | Out-Null }
+    $lanes = Join-Path (Split-Path -Parent $repo) 'lanes'
+    return [pscustomobject]@{ Repo = $repo; Integrator = (Join-Path $lanes 'build'); One = (Join-Path $lanes 'build-1'); Two = (Join-Path $lanes 'build-2') }
+}
+
+function Add-Work {
+    param([string]$Worktree, [string]$File, [string]$Message = 'work')
+    [System.IO.File]::WriteAllText((Join-Path $Worktree $File), "$File`n", (New-Object System.Text.UTF8Encoding($false)))
+    Invoke-Git -Path $Worktree -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $Worktree -Arguments @('commit', '-qm', $Message) | Out-Null
+}
+
+Test-Control 'a builder is seeded on a branch of its own, without the integrator''s harness' {
+    $f = New-BuilderFixture
+    if ((Get-GitValue -Path $f.One -Arguments @('rev-parse', '--abbrev-ref', 'HEAD')) -ne 'build-1') { return 'the builder is not on build-1' }
+    if (-not (Test-Path -LiteralPath (Join-Path $f.Integrator 'warmed.txt'))) { return 'the integrator was not warmed, so the control reads nothing' }
+    if (Test-Path -LiteralPath (Join-Path $f.One 'warmed.txt')) { return 'the builder was warmed with the integrator''s harness' }
+    return $true
+}
+
+Test-Control 'a builder of a lane that declares none is refused' {
+    $repo = New-Fixture
+    $seed = Invoke-Script $Lane @('seed', 'build-1', '-Root', $repo)
+    if ($seed.Code -eq 0) { return 'it seeded a builder nobody declared' }
+    if ($seed.Output -notmatch "no lane named 'build-1'") { return "refused for another reason: $($seed.Output)" }
+    return $true
+}
+
+Test-Control 'status lists a seeded builder under its integrator' {
+    $f = New-BuilderFixture
+    $status = Invoke-Script $Lane @('status', '-Root', $f.Repo)
+    if ($status.Output -notmatch 'build-1\s+build-1') { return "build-1 is not listed: $($status.Output)" }
+    return $true
+}
+
+Test-Control 'a unit is taken by one lane, refused to another, and dropped only by its holder' {
+    $f = New-BuilderFixture
+    if ((Invoke-Script $Builders @('take', 'combat', '-Root', $f.One)).Code -ne 0) { return 'a free unit was not taken' }
+    $second = Invoke-Script $Builders @('take', 'combat', '-Root', $f.Two)
+    if ($second.Code -eq 0) { return 'a held unit was taken by another lane' }
+    if ($second.Output -notmatch 'held by build-1') { return "refused for another reason: $($second.Output)" }
+    $steal = Invoke-Script $Builders @('drop', 'combat', '-Root', $f.Two)
+    if ($steal.Code -eq 0) { return 'a lane dropped a unit it does not hold' }
+    if ((Invoke-Script $Builders @('drop', 'combat', '-Root', $f.One)).Code -ne 0) { return 'the holder could not drop it' }
+    if ((Invoke-Script $Builders @('take', 'combat', '-Root', $f.Two)).Code -ne 0) { return 'a dropped unit was not takeable' }
+    $none = Invoke-Script $Builders @('take', 'nosuch', '-Root', $f.One)
+    if ($none.Code -eq 0 -or $none.Output -notmatch 'no unit document') { return 'a unit with no document was taken' }
+    return $true
+}
+
+Test-Control 'ready marks only a builder''s clean tip, and a clean tip is pending' {
+    $f = New-BuilderFixture
+    Add-Work -Worktree $f.One -File 'one.txt'
+    [System.IO.File]::AppendAllText((Join-Path $f.One 'one.txt'), "dirty`n")
+    $dirty = Invoke-Script $Builders @('ready', '-Root', $f.One)
+    if ($dirty.Code -eq 0 -or $dirty.Output -notmatch 'uncommitted') { return 'a dirty tree was marked ready' }
+    Invoke-Git -Path $f.One -Arguments @('checkout', '--', 'one.txt') | Out-Null
+    $integrator = Invoke-Script $Builders @('ready', '-Root', $f.Integrator)
+    if ($integrator.Code -eq 0 -or $integrator.Output -notmatch 'only a builder') { return 'the integrator marked its own tip ready' }
+    if ((Invoke-Script $Builders @('ready', '-Root', $f.One)).Code -ne 0) { return 'a clean builder tip was not marked' }
+    $pending = Invoke-Script $Builders @('pending', '-Root', $f.Repo)
+    if ($pending.Output -notmatch 'build-1') { return 'a ready tip was not pending' }
+    # A tip already on integration has nothing left to merge.
+    Invoke-Git -Path $f.Repo -Arguments @('update-ref', 'refs/ready/build-2', 'develop') | Out-Null
+    $pending = Invoke-Script $Builders @('pending', '-Root', $f.Repo)
+    if ($pending.Output -match 'build-2') { return 'a tip already on integration was pending' }
+    return $true
+}
+
+Test-Control 'a rejection needs a reason, hides the tip, stands for the builder, and the next ready tip supersedes it' {
+    $f = New-BuilderFixture
+    Add-Work -Worktree $f.One -File 'one.txt'
+    Invoke-Script $Builders @('ready', '-Root', $f.One) | Out-Null
+    $bare = Invoke-Script $Builders @('reject', 'build-1', '-Root', $f.Repo)
+    if ($bare.Code -eq 0 -or $bare.Output -notmatch 'says why') { return 'a rejection without a reason was taken' }
+    if ((Invoke-Script $Builders @('reject', 'build-1', '-Reason', 'tier B red', '-Root', $f.Repo)).Code -ne 0) { return 'a ready tip could not be sent back' }
+    if ((Invoke-Script $Builders @('pending', '-Root', $f.Repo)).Output -match 'build-1') { return 'a sent-back tip was still pending' }
+    $standing = Invoke-Script $Builders @('rejection', '-Root', $f.One)
+    if ($standing.Code -ne 1 -or $standing.Output -notmatch 'tier B red') { return 'the builder could not read its rejection' }
+    if ((Invoke-Script $Builders @('state', '-Root', $f.One)).Output.Trim() -ne 'rejected') { return 'a sent-back tip did not read rejected' }
+    Add-Work -Worktree $f.One -File 'fix.txt' -Message 'fix'
+    Invoke-Script $Builders @('ready', '-Root', $f.One) | Out-Null
+    if ((Invoke-Script $Builders @('rejection', '-Root', $f.One)).Code -ne 0) { return 'a rejection outlived the tip it named' }
+    if ((Invoke-Script $Builders @('state', '-Root', $f.One)).Output.Trim() -ne 'pending') { return 'the fixed tip did not read pending' }
+    return $true
+}
+
+Test-Control 'land refuses a builder, by lane name and by branch' {
+    $f = New-BuilderFixture
+    Add-Work -Worktree $f.One -File 'one.txt'
+    $byLane = Invoke-Script $Land @('-Lane', 'build-1', '-Message', (New-Message $f.Repo), '-Root', $f.Repo)
+    if ($byLane.Code -eq 0) { return 'a builder landed by its lane name' }
+    if ($byLane.Output -notmatch 'never lands') { return "refused for another reason: $($byLane.Output)" }
+    $byBranch = Invoke-Script $Land @('-Branch', 'build-1', '-Message', (New-Message $f.Repo), '-Root', $f.Repo)
+    if ($byBranch.Code -eq 0) { return 'a builder landed by its branch' }
+    if ($byBranch.Output -notmatch 'never lands') { return "refused for another reason: $($byBranch.Output)" }
+    return $true
+}
+
+Test-Control 'verify-all in a builder leaves an integrator-only tier to the integrator, and runs it there' {
+    $f = New-BuilderFixture
+    $inBuilder = Invoke-Script $VerifyAll @('-Root', $f.One, '-SkipGate')
+    if ($inBuilder.Code -ne 0) { return "the builder's run did not pass: $($inBuilder.Output)" }
+    if ($inBuilder.Output -notmatch 'INTEGRATOR') { return 'the integrator-only tier was not named as the integrator''s' }
+    # The control: the same tier, in the integrator, runs -- and its declared failure is a failure.
+    $inIntegrator = Invoke-Script $VerifyAll @('-Root', $f.Integrator, '-SkipGate')
+    if ($inIntegrator.Code -ne 1) { return "the integrator did not run the tier it owns (exit $($inIntegrator.Code))" }
+    return $true
+}
+
+Test-Control 'merging a ready tip is the integrator''s work, and a sync of integration is not' {
+    $f = New-BuilderFixture
+    Add-Work -Worktree $f.One -File 'one.txt'
+    Invoke-Script $Builders @('ready', '-Root', $f.One) | Out-Null
+    $since = Get-Date
+    Start-Sleep -Seconds 1
+    Invoke-Git -Path $f.Repo -Arguments @('checkout', '-q', 'develop') | Out-Null
+    Add-Work -Worktree $f.Repo -File 'moved.txt' -Message 'integration moved'
+    Invoke-Git -Path $f.Repo -Arguments @('checkout', '-q', 'working') | Out-Null
+    Invoke-Git -Path $f.Integrator -Arguments @('merge', '--no-ff', '--no-edit', 'develop') | Out-Null
+    if ((Get-LaneWorkCount -Path $f.Integrator -Branch 'build' -Since $since) -ne 0) { return 'a sync of integration counted as work' }
+    Invoke-Git -Path $f.Integrator -Arguments @('merge', '--no-ff', '--no-edit', 'refs/ready/build-1') | Out-Null
+    if ((Get-LaneWorkCount -Path $f.Integrator -Branch 'build' -Since $since) -ne 1) { return 'merging a ready tip did not count as work' }
+    return $true
+}
+
+function Start-Supervisor {
+    # The real supervisor over a stand-in `claude` that succeeds and does nothing -- a run that
+    # committed nothing -- so the loop after that run is what is exercised, not the agent.
+    param([string]$Repo, [string]$LaneName)
+    $bin = Join-Path (Split-Path -Parent $Repo) 'fake-claude'
+    New-Item -ItemType Directory -Path $bin -Force | Out-Null
+    $result = '{"type":"result","subtype":"success","is_error":false,"result":"nothing to build"}'
+    [System.IO.File]::WriteAllText((Join-Path $bin 'claude.cmd'), "@echo off`r`necho $result`r`n", (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText((Join-Path $bin 'claude'), "#!/bin/sh`necho '$result'`n", (New-Object System.Text.UTF8Encoding($false)))
+    if (-not ((-not (Test-Path variable:IsWindows)) -or $IsWindows)) { & chmod +x (Join-Path $bin 'claude') }
+    $savedPath = $env:PATH
+    $env:PATH = $bin + [System.IO.Path]::PathSeparator + $env:PATH
+    try {
+        $splat = @{ FilePath = (Get-PowerShellExe); ArgumentList = @((Get-PowerShellArgs) + @('-File', $Run, $LaneName, '-Root', $Repo)); PassThru = $true }
+        if ((-not (Test-Path variable:IsWindows)) -or $IsWindows) { $splat['WindowStyle'] = 'Hidden' }
+        return Start-Process @splat
+    } finally { $env:PATH = $savedPath }
+}
+
+function Read-Ledger {
+    param([string]$Repo, [string]$LaneName)
+    $ledger = Get-ChildItem -LiteralPath (Join-Path $Repo "Logs/reach-lane/$LaneName") -Recurse -Filter 'ledger.txt' -ErrorAction SilentlyContinue | Select-Object -Last 1
+    if (-not $ledger) { return '' }
+    return (Read-TextUtf8 $ledger.FullName)
+}
+
+function Wait-ForText {
+    param([string]$Repo, [string]$LaneName, [string]$Pattern, [int]$Seconds)
+    $until = (Get-Date).AddSeconds($Seconds)
+    while ((Get-Date) -lt $until) {
+        if ((Read-Ledger $Repo $LaneName) -match $Pattern) { return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+
+Test-Control 'the integrator idles while a builder holds its lane, and stops on request while waiting' {
+    $f = New-BuilderFixture
+    Set-ProcessField -Repo $f.Repo -Name 'lanes' -Value @(@{ name = 'build'; branch = 'build'; worktree = '../lanes/build'; command = '/build'; builders = @{} })
+    $holder = Start-Helper -Command 'Start-Sleep -Seconds 180'
+    $supervisor = $null
+    try {
+        if (-not (Enter-LaneLock -LaneWorktree $f.One -Owner 'test' -HolderPid $holder.Id).Ok) { return 'the fixture could not hold the builder lane' }
+        $supervisor = Start-Supervisor -Repo $f.Repo -LaneName 'build'
+        if (-not (Wait-ForText $f.Repo 'build' 'verdict: IDLE' 90)) { return "it did not idle: $(Read-Ledger $f.Repo 'build')" }
+        if ((Read-Ledger $f.Repo 'build') -match 'halting:') { return 'it halted beside a running builder' }
+        [System.IO.File]::WriteAllText((Join-Path $f.Repo 'Logs/reach-lane/build/STOP'), 'stop')
+        if (-not (Wait-ForText $f.Repo 'build' 'stopped on request .* while waiting' 90)) { return "it did not stop while waiting: $(Read-Ledger $f.Repo 'build')" }
+    } finally {
+        foreach ($p in @($supervisor, $holder)) { if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }
+    }
+    return $true
+}
+
+Test-Control 'the integrator with no builder running halts after a run that committed nothing' {
+    $f = New-BuilderFixture
+    Set-ProcessField -Repo $f.Repo -Name 'lanes' -Value @(@{ name = 'build'; branch = 'build'; worktree = '../lanes/build'; command = '/build'; builders = @{} })
+    $supervisor = Start-Supervisor -Repo $f.Repo -LaneName 'build'
+    try {
+        if (-not (Wait-ForText $f.Repo 'build' 'halting: run 1 committed nothing' 90)) { return "it did not halt: $(Read-Ledger $f.Repo 'build')" }
+        if ((Read-Ledger $f.Repo 'build') -match 'IDLE') { return 'it idled with nothing to wait for' }
+    } finally {
+        if ($supervisor) { Stop-Process -Id $supervisor.Id -Force -ErrorAction SilentlyContinue }
+    }
+    return $true
+}
+
+Test-Control 'a builder waits while its tip is pending, runs again when it lands, and then halts' {
+    $f = New-BuilderFixture
+    Set-ProcessField -Repo $f.Repo -Name 'lanes' -Value @(@{ name = 'build'; branch = 'build'; worktree = '../lanes/build'; command = '/build'; builders = @{} })
+    Add-Work -Worktree $f.One -File 'one.txt'
+    Invoke-Script $Builders @('ready', '-Root', $f.One) | Out-Null
+    $supervisor = Start-Supervisor -Repo $f.Repo -LaneName 'build-1'
+    try {
+        if (-not (Wait-ForText $f.Repo 'build-1' 'verdict: WAITING' 90)) { return "it did not wait on its tip: $(Read-Ledger $f.Repo 'build-1')" }
+        # The integrator lands it: integration now contains the tip, so nothing is pending.
+        $tip = Get-GitValue -Path $f.Repo -Arguments @('rev-parse', 'refs/ready/build-1')
+        Invoke-Git -Path $f.Repo -Arguments @('update-ref', 'refs/heads/develop', $tip) | Out-Null
+        if (-not (Wait-ForText $f.Repo 'build-1' 'its tip landed' 90)) { return "it did not see its tip land: $(Read-Ledger $f.Repo 'build-1')" }
+        if (-not (Wait-ForText $f.Repo 'build-1' 'halting: run 2 committed nothing' 90)) { return "it did not run again and halt: $(Read-Ledger $f.Repo 'build-1')" }
+    } finally {
+        if ($supervisor) { Stop-Process -Id $supervisor.Id -Force -ErrorAction SilentlyContinue }
     }
     return $true
 }

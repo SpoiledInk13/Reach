@@ -507,6 +507,12 @@ function Invoke-SelfTest {
     Assert ((Get-RunVerdict -Committed 2 -Failure $srv) -eq 'retry') 'a run that committed and then met a server error waits before the next'
     Assert ((Get-RunVerdict -Committed 0 -Failure $bad) -eq 'failed') 'a run that failed before committing halts naming the failure, not as blocked'
     Assert ((Get-RunVerdict -Committed 1 -Failure $bad) -eq 'continue') 'a run that committed and then failed continues'
+    Assert ((Get-CueVerdict -Builder 0 -LiveBuilders 1 -Pending 0 -TipState 'none') -eq 'idle') 'an integrator with a builder running idles rather than halting'
+    Assert ((Get-CueVerdict -Builder 0 -LiveBuilders 0 -Pending 1 -TipState 'none') -eq 'idle') 'an integrator with a ready tip waiting does not halt'
+    Assert ((Get-CueVerdict -Builder 0 -LiveBuilders 0 -Pending 0 -TipState 'none') -eq 'halt') 'an integrator with no builder and nothing ready halts as blocked'
+    Assert ((Get-CueVerdict -Builder 1 -LiveBuilders 0 -Pending 1 -TipState 'pending') -eq 'waiting') 'a builder whose tip is with the integrator waits'
+    Assert ((Get-CueVerdict -Builder 1 -LiveBuilders 0 -Pending 0 -TipState 'none') -eq 'halt') 'a builder with nothing ready halts'
+    Assert ((Get-CueVerdict -Builder 1 -LiveBuilders 0 -Pending 0 -TipState 'rejected') -eq 'halt') 'a builder that ended its run over a rejection halts rather than looping on it'
     $savedRun = @{}
     foreach ($n in @($script:RunVariables.Keys)) { $savedRun[$n] = [Environment]::GetEnvironmentVariable($n) }
     try {
@@ -713,6 +719,53 @@ if (-not $lock.Ok) {
     exit 2
 }
 
+# ------------------------------------------------------------------------------- the builders' cue
+
+function Wait-ForCue {
+    <#
+        What a run that committed nothing means in a lane that shares its work with builders, which is
+        not always a blocked backlog (Get-CueVerdict). Answers `go` when there is work again, `stop`
+        when a stop was asked for while waiting, and `halt` when there is nothing to wait for.
+
+        The integrator with a builder still running has nothing to do YET: it waits for a ready tip.
+        A builder whose tip is with the integrator has nothing to do until that tip lands or comes
+        back, and either is its cue -- a new run picks the next unit, or reads why and fixes it.
+    #>
+    param([int]$Run, [datetime]$Started)
+    $stateDir = Get-BuilderStateDir -RepoRoot $RepoRoot
+    $live = @(Get-LiveBuilders -Process $Process -RepoRoot $RepoRoot -Name $laneConfig.Integrator)
+    $pending = @(Get-PendingTips -RepoRoot $RepoRoot -StateDir $stateDir -IntegrationBranch $integration.Branch)
+    $tip = 'none'
+    if ($laneConfig.Builder -gt 0) { $tip = Get-TipState -RepoRoot $RepoRoot -StateDir $stateDir -IntegrationBranch $integration.Branch -Name $laneConfig.Name }
+
+    $cue = Get-CueVerdict -Builder $laneConfig.Builder -LiveBuilders $live.Count -Pending $pending.Count -TipState $tip
+    if ($cue -eq 'halt') { return 'halt' }
+    if ($cue -eq 'idle') {
+        if ($pending.Count -gt 0) {
+            Write-Ledger ("    ready: {0} -- a new run integrates it." -f (($pending | ForEach-Object { $_.Lane }) -join ', '))
+            return 'go'
+        }
+        Write-Ledger ("    verdict: IDLE -- nothing of its own to build, but {0} still running, so it waits for a ready tip rather than halting." -f ($live -join ', '))
+    } else {
+        Write-Ledger '    verdict: WAITING -- its ready tip is with the integrator, so it waits until that lands or comes back rather than halting.'
+    }
+
+    while ($true) {
+        if (Test-Path -LiteralPath $StopFile) { return 'stop' }
+        Write-StatusLine -Run $Run -Elapsed ((Get-Date) - $Started) -Event ("waiting ({0})" -f $cue) -StopPending $false
+        Start-Sleep -Seconds 30
+        if ($laneConfig.Builder -le 0) {
+            $pending = @(Get-PendingTips -RepoRoot $RepoRoot -StateDir $stateDir -IntegrationBranch $integration.Branch)
+            if ($pending.Count -gt 0) { Write-Ledger ("    ready: {0} -- a new run integrates it." -f (($pending | ForEach-Object { $_.Lane }) -join ', ')); return 'go' }
+            if (@(Get-LiveBuilders -Process $Process -RepoRoot $RepoRoot -Name $laneConfig.Integrator).Count -eq 0) { return 'halt' }
+        } else {
+            $tip = Get-TipState -RepoRoot $RepoRoot -StateDir $stateDir -IntegrationBranch $integration.Branch -Name $laneConfig.Name
+            if ($tip -eq 'none') { Write-Ledger '    its tip landed -- a new run takes the next unit.'; return 'go' }
+            if ($tip -eq 'rejected') { Write-Ledger '    its tip was sent back -- a new run reads why and fixes it.'; return 'go' }
+        }
+    }
+}
+
 # ------------------------------------------------------------------------------------- the loop
 
 $stamp = Get-Date -Format 'yyyy-MM-dd_HHmmss'
@@ -837,9 +890,23 @@ try {
             Write-Ledger ("halting: run {0} failed before it committed anything ({1}), which says nothing about the claims. Read its transcript -- this is not a question for the ideate command." -f $run, $failure.Message)
             break
         }
+        if ($verdict -eq 'halt' -and ($laneConfig.HasBuilders -or $laneConfig.Builder -gt 0) -and -not $DryRun) {
+            $cue = Wait-ForCue -Run $run -Started $started
+            if ($cue -eq 'go') { continue }
+            if ($cue -eq 'stop') {
+                Remove-Item -LiteralPath $StopFile -Force -ErrorAction SilentlyContinue
+                Write-Ledger ''
+                Write-Ledger ("stopped on request after {0} run(s), while waiting" -f $run)
+                break
+            }
+        }
         if ($verdict -eq 'halt') {
             Write-Ledger ''
-            Write-Ledger ("halting: run {0} committed nothing. Every claim whose dependencies are built is blocked on an answer -- that is a question for the ideate command, not a reason to run again." -f $run)
+            if ($laneConfig.Builder -gt 0) {
+                Write-Ledger ("halting: run {0} committed nothing and its tip is not with the integrator. Every unit this builder may take is held, blocked on an answer, or needs the integrator's harness -- the ideate command answers the blocked ones." -f $run)
+            } else {
+                Write-Ledger ("halting: run {0} committed nothing. Every claim whose dependencies are built is blocked on an answer -- that is a question for the ideate command, not a reason to run again." -f $run)
+            }
             break
         }
     }

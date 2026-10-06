@@ -18,6 +18,10 @@
         failure: it is a failure you will not look for.
       * A tier marked human is never run here. If an outcome can only be verified by looking at it or
         listening to it, no script can report on it, and one that pretends to is lying.
+      * In a BUILDER lane, a tier marked `"builders": false` is never run either: it needs the harness
+        only the integrator holds, and the integrator's sweep over the merged batch runs it. It is
+        reported INTEGRATOR -- not a skip, which would hold the builder on a tier it may never run,
+        and never a pass, which would claim a proof nobody made.
 
     Exit 0 all tiers passed. 1 something failed. 3 something was skipped. 2 refused to start.
 
@@ -91,6 +95,11 @@ function Invoke-Shell {
     }
 }
 
+# Whether this checkout is a builder, read off its own branch rather than a flag, so a builder that
+# forgets to say so still leaves the integrator's tiers alone.
+$Builder = Get-LaneOfBranch -Process $Process -RepoRoot $RepoRoot -Branch (Get-GitValue -Path $RepoRoot -Arguments @('rev-parse', '--abbrev-ref', 'HEAD'))
+if ($Builder -and $Builder.Builder -le 0) { $Builder = $null }
+
 $results = New-Object System.Collections.Generic.List[object]
 
 function Add-Result {
@@ -127,6 +136,11 @@ foreach ($t in $Tiers) {
 
     if (Get-Field $t 'human' $false) {
         Add-Result $name 'HUMAN' 'not verifiable here, and nothing that runs may say otherwise'
+        continue
+    }
+
+    if ($Builder -and -not (Get-Field $t 'builders' $true)) {
+        Add-Result $name 'INTEGRATOR' ("{0} is a builder; the integrator's sweep runs this tier" -f $Builder.Name)
         continue
     }
 
@@ -178,6 +192,11 @@ if ($failed.Count -gt 0) {
 if ($skipped.Count -gt 0) {
     Write-Host ("VERDICT: INCOMPLETE -- {0} skipped, nothing failed. A skip is not a pass." -f $skipped.Count) -ForegroundColor Yellow
     exit 3
+}
+$left = @($results | Where-Object { $_.Verdict -eq 'INTEGRATOR' })
+if ($left.Count -gt 0) {
+    Write-Host ("VERDICT: PASS -- {0} clean in this builder, {1} left to the integrator's sweep" -f ($results.Count - $left.Count), $left.Count) -ForegroundColor Green
+    exit 0
 }
 Write-Host ("VERDICT: PASS -- {0} clean" -f $results.Count) -ForegroundColor Green
 exit 0

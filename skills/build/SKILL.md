@@ -1,5 +1,6 @@
 ---
 description: Implement and prove everything that is not presentation, reading the unit documents as the backlog. Runs until nothing is left that can be built without an answer. Use to build unbuilt units, satisfy owed claims, or work through the roster.
+argument-hint: "[builder]"
 ---
 
 # Build
@@ -98,6 +99,50 @@ proved is not what would land. Sync, re-run, land again.
 
 A land also publishes. If it fails on the push rather than on the merge, the merge already happened:
 run `publish` to retry the push. Landing again would report nothing to land and read like a fault.
+
+## The integrator and the builders
+
+A lane that declares `builders` in `process.json` runs as one **integrator** — the lane itself, the only
+one holding the scarce harness (an editor, an emulator, a device, a warm database) and the only one that
+lands — and any number of **builders**, `<lane>-1`, `<lane>-2`, …, seeded as lanes of their own, which
+have no harness. This command with no argument is the integrator and `builder` makes it a builder;
+everything else here binds both, except where this section says otherwise. The split pays wherever most
+proofs need no harness: one project measured nine in ten that way, while its one lane spent half its wall
+clock waiting on serial sweeps — and with two builders, most of what it proved came through them.
+
+**Every lane takes a unit before writing in it**, `reach.ps1 builders take <unit>`, and one lane holds a
+unit at a time, so two lanes never edit one document or one unit's code at once. A refused take is not a
+question: take the next unit. A run starts by continuing the units its lane already holds
+(`builders held`), and **drops one** (`builders drop <unit>`) only when nothing in it is left that the
+lane can build *and* its work in it is on integration — dropped earlier, the next holder writes over a
+document whose last edit has not landed. A take is the lane's, not the run's, and crosses runs.
+
+**A builder takes what needs no harness**: a claim whose evidence runs in a tier `process.json` does not
+mark `"builders": false`, and the code under it. **Whatever the harness must see is the integrator's.**
+That is not a question either: the builder leaves it, and drops the unit once only such claims remain in
+it, so the integrator can take it. `reach.ps1 all` in a builder reports those tiers as the integrator's
+and never runs them.
+
+**A builder proves with `reach.ps1 all` green over its committed tree, then marks that tip ready**,
+`reach.ps1 builders ready`, **run inside the builder** — it marks the checkout's HEAD, and from anywhere
+else it marks the wrong one. **It never lands and never touches integration**: where the integrator
+would verify and land a batch, a builder proves and marks ready, and a half-done unit is committed to its
+branch and simply not marked. `land` refuses a builder outright.
+
+**A builder starts by asking whether its last tip came back**, `reach.ps1 builders rejection`, and fixes
+that before anything else. A rejection names why — a tier the sweep reddened, a conflict — and marking
+the fixed tip ready supersedes it. A conflict is fixed by syncing integration and proving again, the
+other side having landed by then.
+
+**The integrator integrates first** — at the start of every run and at every batch boundary — because a
+builder waits on nothing else. `reach.ps1 builders pending` lists the ready tips; merge each into the lane
+as `git merge --no-ff --no-edit refs/ready/<builder>`, that exact form, which is what the supervisor
+counts as the run's work. A merge that conflicts is aborted and sent back,
+`reach.ps1 builders reject <builder> -Reason <why>`. Then one sweep runs over everything merged and the
+integrator's own commits, and green lands it all as one land, a builder's tip counting as one of the
+batch's three (**Committing**). **A red sweep is localised before anything lands**: reset the lane to
+before the merges — they are unlanded, so nothing is lost — sweep each tip alone over that, land the
+green and reject the red with the row it failed. Then the integrator builds what only it can.
 
 ## Questions
 
