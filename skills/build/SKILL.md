@@ -130,9 +130,16 @@ decision nobody reviews.
 unit: a unit that cannot land in pieces holds one for as long as it takes, and the inbox reads what the
 lane added for exactly that reason. A question left uncommitted in the lane's working tree is a question
 nobody has, and one carried in the final report alone is a person remembering. The line is the design
-command's to answer and **this lane's to delete** — the answer lands as a rewritten claim alone, the
-next sync brings it in against the line, and the line goes in that merge. Do not land the document half
-on its own to close it: that makes the lane an ancestor of integration and the unit's code lands never.
+command's to answer and **this lane's to delete** — the answer lands as a rewritten claim alone, and the
+next sync brings it in. Do not land the document half on its own to close it: that makes the lane an
+ancestor of integration and the unit's code lands never.
+
+**The sync does not delete the line for you.** The answer rewrites the claim beside the line rather than
+the line, so the merge is usually clean and the line survives it: one lane synced three answers in and
+kept all three. So after every sync read what arrived, `git log ORIG_HEAD..HEAD --grep "Answers <lane>'s Open"`,
+and delete each line it answers in the commit after the merge. **Land no tip still carrying one**: a line
+kept goes back to integration with the land, reading as open over an answer already written, and the next
+run parks on it again.
 
 What you may decide yourself is what the contract is indifferent to: names, internal structure, which
 of two mechanisms satisfy it identically. A choice that would change what the contract *says* is a

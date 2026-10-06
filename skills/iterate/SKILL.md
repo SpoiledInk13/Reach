@@ -62,6 +62,13 @@ Each event is a ledger line — a run starting, its verdict, what it landed — 
 the lane branch moves, or a `quiet:` line. Relay each to the owner as it arrives, in a line or two, and
 keep this window otherwise quiet.
 
+**A land's `Open:` lines are news, and the ledger does not carry them.** On every land, read what it added
+to the inbox — `git diff <land>^1 <land> -- <unit.dir> <the human document>`, kept to added `**Open:**`
+lines — and relay each by its unit and claim: a question is waiting on the design command from that
+moment. One whose claim integration has already answered (`git log --grep "Answers <lane>'s Open"`) is a
+line the lane kept over its answer, which the next run will park on again; name it as that, so the owner
+starts the design command rather than learning it from a lane that stopped.
+
 **A `KILLED AT EXIT` line is news.** It means a run backgrounded a command and its process killed the
 command when the turn ended, which the supervisor's environment exists to prevent. So a newer agent CLI
 has stopped honouring that environment, and the run's verified work is waiting for the next run. Relay

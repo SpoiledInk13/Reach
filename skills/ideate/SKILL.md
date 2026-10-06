@@ -151,7 +151,9 @@ absent — which looks exactly like an empty inbox.
 landed — a unit too long for one run, a unit that cannot land in pieces — so an `Open:` line filed
 under a claim of that unit is committed to the lane's branch and reaches integration only when the
 unit does, which may be days. Nothing announces it, and the grep above answers "empty" over a
-question that exists with a lane parked on it.
+question that exists with a lane parked on it. **The lanes are every branch `git branch` lists but
+the integration branch and the primary checkout's own**, never a list a document names: a pass that read
+the three lanes it knew of missed two live questions on lanes added since.
 
 ```shell
 git diff <integration>...<lane> -- <unit.dir> <the human document> | grep -E '^\+.*\*\*(Open|Not working|Confirmed|Reported):\*\*'
@@ -225,8 +227,11 @@ question with commentary rather than a contract.
 
 **A lane's question is answered on integration and deleted in the lane.** A line that is not on the
 integration branch cannot go in the commit that answers it, so that commit carries the rewritten claim
-alone and the lane drops the line when it syncs the answer in. Until then the line stands and reads as
-open, which is right: it is, until the lane has the answer. **Never land the lane's document half to
+alone and the lane drops the line when it syncs the answer in. **The merge does not drop it**: the answer
+rewrites the claim beside the line rather than the line, so the sync is usually clean and the line
+survives it. So the answering commit's message says `Answers <lane>'s Open under <unit> claim <N>`, which
+is what the lane reads after a sync to know which of its lines to delete. Until then the line stands and
+reads as open, which is right: it is, until the lane has the answer. **Never land the lane's document half to
 close it.** A land is a merge commit built from the lane tip, so one carrying the document alone makes
 the lane an ancestor of integration, and the code the lane is still writing then lands never — the
 later merge finding the tip already in.
