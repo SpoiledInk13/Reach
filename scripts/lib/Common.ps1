@@ -268,9 +268,9 @@ function Get-LaneWorkCount {
 
 function Get-LaneConfig {
     <#
-        One lane by name, with its paths resolved against the repository. A lane's worktree is
-        written relative to the repository root in process.json so the file stays portable between
-        machines and checkouts.
+        One lane by name, with its paths resolved against the primary checkout. A lane's worktree is
+        written relative to the primary in process.json so the file stays portable between machines
+        and checkouts.
 
         A lane that declares `builders` also answers for `<name>-1`, `<name>-2`, ...: its BUILDER
         lanes, derived rather than listed, because how many there are is how many the owner seeded.
@@ -279,6 +279,10 @@ function Get-LaneConfig {
         the scarce verifier is the reason one lane integrates and the rest only build.
     #>
     param($Process, [string]$RepoRoot, [string]$Name)
+    # Every lane path is the primary's, whichever worktree asks: resolved against the checkout running
+    # the verb, `../<repo>-lanes/<name>` from inside a lane lands one level too deep and every lane
+    # reads not seeded -- which is where a builder runs its own sync.
+    $RepoRoot = Get-PrimaryRoot $RepoRoot
     $lanes = ConvertTo-Array (Get-Field $Process 'lanes' @())
     foreach ($lane in $lanes) {
         if ((Get-Field $lane 'name' '') -ne $Name) { continue }
@@ -313,6 +317,28 @@ function Get-LaneConfig {
         }
     }
     return $null
+}
+
+$script:PrimaryRoots = @{}
+
+function Get-PrimaryRoot {
+    <#
+        The main worktree, from any worktree of the repository: the first entry `git worktree list`
+        prints, which is the main one by git's own contract. The parent of `--git-common-dir` is not,
+        under `--separate-git-dir` or in a submodule. Asked once per checkout, because a status reads
+        every lane and each lookup would otherwise pay a git call for the same answer.
+    #>
+    param([string]$RepoRoot)
+    if ($script:PrimaryRoots.ContainsKey($RepoRoot)) { return $script:PrimaryRoots[$RepoRoot] }
+    $primary = $RepoRoot
+    $result = Invoke-Git -Path $RepoRoot -Arguments @('worktree', 'list', '--porcelain')
+    if ($result.Code -eq 0) {
+        foreach ($line in $result.Lines) {
+            if ($line -like 'worktree *') { $primary = [System.IO.Path]::GetFullPath($line.Substring(9).Trim()); break }
+        }
+    }
+    $script:PrimaryRoots[$RepoRoot] = $primary
+    return $primary
 }
 
 function New-LaneConfig {
@@ -675,6 +701,18 @@ function Test-ProcessAncestor {
         $info = Get-ProcessInfo $info.Parent
     }
     return $false
+}
+
+function Test-SessionClaim {
+    <#
+        Whether a lock is this session's own claim: taken by `lane claim`, for the agent this runs
+        under. The owner is read as well as the pid because the lock already says who took it, and a
+        supervisor's lock is never released by the run beneath it however the pids fall.
+    #>
+    param($Holder)
+    if (-not $Holder -or (Get-Field $Holder 'owner' '') -ne 'session') { return $false }
+    $agent = Get-AgentProcessId
+    return ($agent -gt 0 -and [int](Get-Field $Holder 'pid' 0) -eq $agent)
 }
 
 function Get-LaneHolder {

@@ -239,6 +239,37 @@ Test-Control 'status does not count reach''s own files as uncommitted, and still
     return $true
 }
 
+Test-Control 'lane verbs run inside a lane find every lane where the primary does' {
+    # Every other control here runs from the primary, which is how resolving a lane's path against
+    # whichever checkout ran the verb passed them all: from inside a lane, `../lanes/build` is one
+    # level too deep, every lane reads not seeded, and a builder told to sync from its lane re-seeds.
+    $repo = New-Fixture -Builders
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    Invoke-Script $Lane @('seed', 'build-1', '-Root', $repo) | Out-Null
+    $builder = Join-Path (Split-Path -Parent $repo) 'lanes/build-1'
+    if (-not (Test-Path -LiteralPath $builder)) { return 'the builder was not seeded from the primary' }
+
+    $status = Invoke-Script $Lane @('status', '-Root', $builder)
+    if ($status.Output -match 'not seeded') { return "a seeded lane read as not seeded from inside a lane: $($status.Output)" }
+    if ($status.Output -notmatch 'build-1\s+build-1') { return "the builder running the verb was not listed: $($status.Output)" }
+    $sync = Invoke-Script $Lane @('sync', 'build-1', '-Root', $builder)
+    if ($sync.Code -ne 0) { return "sync from inside the lane exited $($sync.Code): $($sync.Output)" }
+
+    # The default path, which names the repository by its folder: from a lane, that is the lane's.
+    $named = New-Fixture
+    $config = Read-TextUtf8 (Join-Path $named 'process.json') | ConvertFrom-Json
+    $config.lanes[0].PSObject.Properties.Remove('worktree')
+    [System.IO.File]::WriteAllText((Join-Path $named 'process.json'), ($config | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
+    Invoke-Git -Path $named -Arguments @('commit', '-qam', 'default lane path') | Out-Null
+    Invoke-Git -Path $named -Arguments @('branch', '-f', 'develop', 'working') | Out-Null
+    Invoke-Script $Lane @('seed', 'build', '-Root', $named) | Out-Null
+    $inside = Join-Path (Split-Path -Parent $named) 'repo-lanes/build'
+    if (-not (Test-Path -LiteralPath $inside)) { return 'the default lane path was not seeded from the primary' }
+    $defaulted = Invoke-Script $Lane @('status', '-Root', $inside)
+    if ($defaulted.Output -match 'not seeded') { return "the default lane path read as not seeded from inside it: $($defaulted.Output)" }
+    return $true
+}
+
 # --------------------------------------------------------------------------------- the landing
 
 Test-Control 'land refuses while the integration branch is checked out' {
@@ -705,13 +736,10 @@ Test-Control 'the supervisor refuses to drive a lane from inside itself' {
     $repo = New-Fixture
     Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
     $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
-    # A lane worktree shares the repository's config, so pointing -Root at the lane makes the lane
-    # both the driver and the driven -- where a sync would rewrite the scripts running the loop.
-    Copy-Item -LiteralPath (Join-Path $repo 'process.json') -Destination (Join-Path $worktree 'process.json') -Force
-    $config = Read-TextUtf8 (Join-Path $worktree 'process.json') | ConvertFrom-Json
-    $config.lanes[0].worktree = '.'
-    [System.IO.File]::WriteAllText((Join-Path $worktree 'process.json'), ($config | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
-
+    # Started from inside the lane with the lane's own process.json, untouched -- where a sync would
+    # rewrite the scripts running the loop. This control once set the lane's worktree to '.' to get
+    # there, which only named the lane while paths resolved against whichever checkout ran the verb;
+    # the real case then resolved to a folder that did not exist, and the guard never fired.
     $supervise = Invoke-Script $Run @('build', '-Root', $worktree, '-DryRun')
     if ($supervise.Code -eq 0) { return 'it ran anyway' }
     if ($supervise.Output -notmatch 'from inside itself') { return 'refused for another reason' }
@@ -858,6 +886,29 @@ Test-Control 'a claimed lane refuses a second session, and only its holder relea
         if ($release.Code -ne 0 -or (Read-LockPid $worktree) -ne 0) { return "the holder's release did not free the lane: $($release.Output)" }
     } finally {
         Stop-Process -Id $first.Id, $second.Id -Force -ErrorAction SilentlyContinue
+    }
+    return $true
+}
+
+Test-Control 'a session releases its own claim, though it is above the release' {
+    # The control above stands each session in with a process beside the prover, so neither is an
+    # ancestor of the release -- and a session's agent always is, because every tool call it makes is
+    # its descendant. Asking "is the holder above me?" first then reads the session's own claim as a
+    # supervisor's, and release leaves it held until the agent exits. The prover is the stand-in here,
+    # being above the scripts it runs exactly as an agent is above its tool calls.
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Join-Path (Split-Path -Parent $repo) 'lanes/build'
+    $claim = Invoke-AsAgent -AgentPid $PID -Script $Lane -Arguments @('claim', 'build', '-Root', $repo)
+    if ($claim.Code -ne 0 -or (Read-LockPid $worktree) -ne $PID) { return "the claim did not take the lock: $($claim.Output)" }
+    try {
+        $again = Invoke-AsAgent -AgentPid $PID -Script $Lane -Arguments @('claim', 'build', '-Root', $repo)
+        if ($again.Output -notmatch "already this session's") { return "a second claim did not say the lane was already this session's: $($again.Output)" }
+        $release = Invoke-AsAgent -AgentPid $PID -Script $Lane -Arguments @('release', 'build', '-Root', $repo)
+        if ($release.Code -ne 0 -or $release.Output -notmatch 'RELEASED') { return "the session's release did not say RELEASED: $($release.Output)" }
+        if ((Read-LockPid $worktree) -ne 0) { return 'the lock is still there' }
+    } finally {
+        Exit-LaneLock -LaneWorktree $worktree
     }
     return $true
 }

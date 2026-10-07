@@ -330,12 +330,14 @@ function Invoke-Claim {
     $holder = Get-LaneHolder -LaneWorktree $lane.Worktree
     if ($holder) {
         $heldBy = [int](Get-Field $holder 'pid' 0)
-        if (Test-ProcessAncestor -Id $heldBy) {
-            Write-Host ("HELD: lane '{0}' is held by the supervisor running this session (pid {1}), which is the claim already made." -f $lane.Name, $heldBy) -ForegroundColor Green
+        # This session before the supervisor, because a session's agent is above every command it
+        # runs: asked the other way round, the session's own claim reads as a supervisor's.
+        if ((Test-SessionClaim -Holder $holder)) {
+            Write-Host ("HELD: lane '{0}' is already this session's (pid {1})." -f $lane.Name, $heldBy) -ForegroundColor Green
             exit 0
         }
-        if ($heldBy -eq (Get-AgentProcessId)) {
-            Write-Host ("HELD: lane '{0}' is already this session's (pid {1})." -f $lane.Name, $heldBy) -ForegroundColor Green
+        if (Test-ProcessAncestor -Id $heldBy) {
+            Write-Host ("HELD: lane '{0}' is held by the supervisor running this session (pid {1}), which is the claim already made." -f $lane.Name, $heldBy) -ForegroundColor Green
             exit 0
         }
         Write-Host ("REFUSED: lane '{0}' is held by {1} (pid {2}) since {3}. One agent per lane -- stop rather than share it." -f $lane.Name, (Get-Field $holder 'owner' '?'), $heldBy, (Get-Field $holder 'since' '?')) -ForegroundColor Red
@@ -371,13 +373,14 @@ function Invoke-Release {
         exit 0
     }
     $heldBy = [int](Get-Field $holder 'pid' 0)
-    if (Test-ProcessAncestor -Id $heldBy) {
-        Write-Host ("LEFT: lane '{0}' is the supervisor's (pid {1}), and it releases the lane when the loop ends." -f $lane.Name, $heldBy) -ForegroundColor Green
-        exit 0
-    }
-    if ($heldBy -eq (Get-AgentProcessId)) {
+    # This session before the supervisor, as in claim: the session's agent is above this release too.
+    if ((Test-SessionClaim -Holder $holder)) {
         Exit-LaneLock -LaneWorktree $lane.Worktree
         Write-Host ("RELEASED: lane '{0}'." -f $lane.Name) -ForegroundColor Green
+        exit 0
+    }
+    if (Test-ProcessAncestor -Id $heldBy) {
+        Write-Host ("LEFT: lane '{0}' is the supervisor's (pid {1}), and it releases the lane when the loop ends." -f $lane.Name, $heldBy) -ForegroundColor Green
         exit 0
     }
     Write-Host ("REFUSED: lane '{0}' is held by {1} (pid {2}), not this session. Releasing it would let a second agent in beside the first." -f $lane.Name, (Get-Field $holder 'owner' '?'), $heldBy) -ForegroundColor Red
