@@ -1,9 +1,9 @@
-"""Build the illustrated edition using the approved v1.0 slide copy.
+"""Build the illustrated edition using the current versioned slide copy.
 
 python presentation/build_storybook.py
 """
 from pathlib import Path
-from build_deck import SLIDES
+from build_deck import SLIDES, VERSION
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
@@ -30,9 +30,11 @@ ROLES = [
     ('REACH', INK), ('THE ORIGIN', INK), ('THE STORY', INK), ('THE DESIGN GAP', RUST),
     ('THE WORKFLOW', INK), ('IDEATE', INK), ('BUILD', RUST), ('BUILD', RUST),
     ('IDEATE', INK), ('IDEATE', INK), ('IDEATE → BUILD', INK), ('BUILD', RUST),
-    ('REACH SCRIPTS', INK), ('MILESTONE', GOLD), ('THE HANDOFF', INK),
+    ('REACH SCRIPTS', INK), ('ITERATE', INK), ('MILESTONE', GOLD),
+    ('THE FEEDBACK LOOP', RUST), ('THE HANDOFF', INK),
     ('IN PRACTICE', INK), ('PROJECT FIT', INK), ('BENEFITS', INK),
     ('ADOPT', INK), ('REPOSITORY MAP', INK), ('VERIFICATION', RUST),
+    ('BUILDERS + INTEGRATOR', RUST),
 ]
 SCENES = {
     1: ('pip-paperwork.png', 'The process grew. The playable goal stayed small.'),
@@ -41,9 +43,9 @@ SCENES = {
     5: ('pip-cottage-open.png', 'Decide what the player should expect.'),
     7: ('pip-door-closed.png', 'A blocked claim becomes a question for ideate.'),
     9: ('pip-window-open.png', 'Same destination. A second kind of opening.'),
-    13: ('pip-fireplace.png', 'Working behavior still needs a human verdict.'),
-    14: ('pip-fireplace.png', 'The warmth is the outcome. The contract carries the understanding.'),
-    15: ('pip-cottage-open.png', 'Think together about the whole game.'),
+    14: ('pip-fireplace.png', 'Working behavior still needs a human verdict.'),
+    16: ('pip-fireplace.png', 'The warmth is the outcome. The contract carries the understanding.'),
+    17: ('pip-cottage-open.png', 'Think together about the whole game.'),
 }
 
 
@@ -108,7 +110,7 @@ def diagram(slide, index):
     if index == 6:
         for i, (head, body, color) in enumerate([
             ('01  AGREED BEHAVIOR', 'Closed door → Pip stays put', INK),
-            ('02  NAMED EVIDENCE', 'Position + blocked-route feedback', RUST),
+            ('02  NAMED EVIDENCE', 'Position + blocked-route state', RUST),
             ('03  VERIFICATION', 'Tests → game build → explicit result', GREEN),
         ]):
             card(slide,x,2.22+i*1.15,w,1.02,head,body,color)
@@ -116,7 +118,7 @@ def diagram(slide, index):
         card(slide,x,2.25,w,1.15,'BUILD → OPEN QUESTION','What if the door closes mid-walk?',RUST)
         text(slide,x+2.3,3.48,.6,.4,'↓',24,MUTED)
         card(slide,x,4.02,w,1.42,'IDEATE → UPDATED CONTRACT','Stop before the obstacle.\nKeep the last valid position.',INK)
-        text(slide,x,5.66,w,.42,'Build reads the answer from the document.',17,MUTED)
+        text(slide,x,5.66,w,.62,'Build syncs the answer and removes its Open.',17,MUTED)
     elif index == 10:
         card(slide,x,2.22,w,1.46,'OPENING','Open / closed\nLocked / unlocked',INK)
         line(slide,x+w/2,3.68,x+w/2,3.98)
@@ -138,6 +140,24 @@ def diagram(slide, index):
         text(slide,x,3.67,w,.4,'Verified commit → checked merge',19,INK,True)
         card(slide,x,4.3,w,1.18,'INTEGRATION','Publish the accepted decisions and code.',INK)
         text(slide,x,5.72,w,.42,'Ideate syncs before the next conversation.',17,MUTED)
+    elif index == 13:
+        card(slide,x,2.22,w,1.02,'ONE RUN','Implement → verify → land',RUST)
+        text(slide,x+2.3,3.32,.6,.4,'↓',24,MUTED)
+        card(slide,x,3.82,w,1.02,'FRESH RUN','Read the documents. Pick up the work.',GREEN)
+        text(slide,x,5.04,w,.65,'Your console follows progress\nand relays a stop request.',18,INK)
+        text(slide,x,5.96,w,.62,'Explicit opt-in; agent permission\nprompts disabled.',16,MUTED)
+    elif index == 15:
+        rows = [('OWNER FINDS BUG', 'Pip crossed a closed door.', GOLD),
+                ('IDEATE FINDS RULE', 'Stop before the obstacle.', INK),
+                ('BUILD TESTS + FIXES', 'New case catches the crossing.', RUST),
+                ('OWNER RETRIES', 'Confirm on the real build.', GREEN)]
+        for i, (heading, body, accent) in enumerate(rows):
+            card(slide, x, 2.22+i*1.07, w, 1.02, heading, body, accent)
+    elif index == 23:
+        card(slide,x,2.22,2.45,1.5,'BUILDER 1','Claim + prove\nReady commit',RUST)
+        card(slide,x+2.7,2.22,2.45,1.5,'BUILDER 2','Claim + prove\nReady commit',RUST)
+        text(slide,x,3.92,w,.4,'Ready tips → merged batch',19,INK,True)
+        card(slide,x,4.55,w,1.45,'INTEGRATOR','Every tier, including the harness.\nThen land the verified tree.',GREEN)
 
 
 def fit_check(prs):
@@ -175,8 +195,10 @@ def build():
     prs=Presentation()
     prs.slide_width,prs.slide_height=Inches(13.333), Inches(7.5)
     prs.core_properties.title='Reach — storybook visual edition'
-    prs.core_properties.subject='Approved v1.0 content with storybook artwork and editable diagrams'
+    prs.core_properties.subject=f'Content v{VERSION} with storybook artwork and editable diagrams'
+    prs.core_properties.version=VERSION
     prs.core_properties.author='Amelia Bleeker'
+    assert len(ROLES) == len(SLIDES)
     for index,item in enumerate(SLIDES):
         s=prs.slides.add_slide(prs.slide_layouts[6])
         s.background.fill.solid()
@@ -200,9 +222,9 @@ def build():
                 for j,(h,b,c) in enumerate(zip(['IDEATE','BUILD','MILESTONE'],item['bullets'],[INK,RUST,GOLD])):
                     x=.68+j*4.06
                     card(s,x,2.64,3.82,2.62,h,b,c)
-                    text(s,x+.2,5.49,3.4,.5,['Your judgment','Automated evidence','Your experience'][j],20,c,True)
+                    text(s,x+.2,5.49,3.4,.5,['Your judgment','Automated evidence','Tests + your judgment'][j],20,c,True)
             else:
-                split=index in SCENES or index in (6,8,10,11,12)
+                split=index in SCENES or index in (6,8,10,11,12,13,15,23)
                 w=6.28 if split else 11.52
                 row=.94 if len(item['bullets'])<=4 else .86
                 for j,b in enumerate(item['bullets']):
@@ -217,7 +239,7 @@ def build():
             if item.get('payoff'):
                 box(s,.66,6.66,12,.06,accent)
                 text(s,.72,6.84,11.95,.34,item['payoff'],16,accent,True)
-        text(s,.68,7.24,11.55,.18,'REACH  ·  CONTENT v1.0  ·  STORYBOOK EDITION'+('  /  APPENDIX' if item.get('appendix') else ''),9,MUTED)
+        text(s,.68,7.24,11.55,.18,f'REACH  ·  CONTENT v{VERSION}  ·  STORYBOOK EDITION'+('  /  APPENDIX' if item.get('appendix') else ''),9,MUTED)
         text(s,12.12,7.2,.5,.23,f'{index+1:02}',11,MUTED)
         s.notes_slide.notes_text_frame.text=(f"SLIDE {index+1}: {item['title']}\n\n{item['notes']}"
             +(f"\n\nPRACTICAL BENEFIT: {item['payoff']}" if item.get('payoff') else '')
@@ -225,13 +247,14 @@ def build():
     fit_check(prs)
     prs.save(OUTPUT)
     check=Presentation(OUTPUT)
+    assert len(check.slides) == len(SLIDES)
     for s,item in zip(check.slides,SLIDES):
         text_content='\n'.join(sh.text for sh in s.shapes if sh.has_text_frame)
         assert item['title'] in text_content
         assert item['subtitle'] in text_content
         assert all(b in text_content for b in item['bullets'])
         assert item['notes'] in s.notes_slide.notes_text_frame.text
-    print(f'Built {OUTPUT}; {len(check.slides)} slides; approved copy preserved; text fit and geometry checked.')
+    print(f'Built {OUTPUT}; {len(check.slides)} slides; source copy preserved; text fit and geometry checked.')
 
 
 if __name__=='__main__':

@@ -140,8 +140,12 @@ falls between them, and why none of them can quietly do another's job.
 | | Owns | Reads | Verified by |
 |---|---|---|---|
 | `/reach:ideate` | the documents, the architecture, the tooling | everything | **your judgement**, in conversation |
-| `/reach:build` | everything that can be asserted | the unit documents | **the machine** — every tier |
-| `/reach:milestone` | how it looks, sounds and feels | the walkthroughs | **your eyes and ears**, on a real build |
+| `/reach:build` | code outside the configured presentation layer | the unit documents | **the machine** — every tier |
+| `/reach:milestone` | the presentation layer, including its assertable behavior and tests | the walkthroughs and their unit documents | **the machine** for assertable claims; **your eyes and ears** for the experience |
+
+Code ownership follows `human.layer`; verification follows the claim. A defect in that layer is
+milestone's to repair even when a test can catch it. Without `human.layer`, build owns all code and
+milestone composes and tunes the experience.
 
 A normal week: **`/reach:ideate`** to decide what a piece of the system *is* and write the contract;
 **`/reach:build`** to implement it until nothing is left that it can build without an answer;
@@ -162,6 +166,17 @@ That line is the entire coordination protocol. There is no queue, no ticket syst
 the same commit — so the answer lands where the next run already reads, rather than in a thread nobody
 opens again.
 
+A question filed on a lane is the one exception to "same commit": the line is not on the integration
+branch, so the answer cannot delete it. The answering commit says `Answers <lane>'s Open under <unit>
+claim <N>`, and the lane deletes the line itself after it syncs the answer in — the merge alone would
+not, because the answer rewrites the claim beside the line and leaves the line standing. Every branch git
+lists counts as a lane here, so a lane added since the last session is not missed.
+
+Before answering, or before writing that something is undefined, `/reach:ideate` also greps the
+**archive** adoption left behind. Unit documents distilled from an older corpus go quiet exactly where
+the owner's detailed rulings live, and asking the owner again makes them state it twice. What the owner
+ruled is ported whole; a draft nobody ruled on is put to them as a proposal.
+
 **`/reach:milestone` is optional.** If everything your project produces can be asserted, `/reach:build`
 owns all of it and walkthroughs would be ceremony. You need it when there is an outcome only a person
 can judge.
@@ -179,6 +194,9 @@ pwsh Scripts/reach.ps1 lane sync -Primary  # and into your own checkout, which n
 pwsh Scripts/reach.ps1 land -Lane build -Message msg.txt -Verified <sha>
 pwsh Scripts/reach.ps1 publish              # push those refs again, after one was refused
 ```
+
+Every lane verb runs the same from your checkout or from inside any lane: lane paths resolve against
+the main worktree, never the one running the command.
 
 Lanes remove the two collisions that come from two agents sharing one checkout — one index they both
 stage into, and one working tree one edits while the other is mid-task. They also mean a command runs
@@ -205,12 +223,14 @@ against a commit you never merged, silently discarding whatever landed in betwee
 with the commit you actually ran the tiers against and the land is refused outright if the merge would
 produce a different tree.
 
-A land then **publishes**: the integration branch, your checkout's branch and every lane's go to
-`integration.remote` in one atomic push. A land that merged and reached no remote is not finished —
-the branch everyone else reads does not carry it, so the next agent parks on the question this one
+A land then **publishes**: the integration branch goes to `integration.remote` first, and its push
+determines success. Your checkout's branch and the configured lanes' branches are backed up in a
+separate atomic push; a refused backup warns without failing the land. A land whose integration
+push is refused is not finished — the branch everyone else reads does not carry it, so the next
+agent parks on the question this one
 answered and the one after re-derives it, while from the disk that holds the merge everything looks
-published. If the push is refused the land fails with it. The merge is not rolled back, so nothing
-needs re-landing: `publish` retries the push alone. A repository with no remote lands anyway and says
+published. If the integration push is refused the land fails with it. The merge is not rolled back,
+so nothing needs re-landing: `publish` retries the push alone. A repository with no remote lands anyway and says
 it published nothing. Set `integration.publish` to `false` to turn it off, or
 `integration.publishAll` to `true` to take every other local branch along best-effort.
 
@@ -262,8 +282,16 @@ the supervisor will not start beside a session and `-Check` sees either.
 
 Each run is a **new agent process**, not another turn in one session. That is the point: several of
 `/reach:build`'s stop conditions are *"this session has run long enough to stop trusting its own
-memory of the documents"*, and only a fresh process answers them. It halts when a run commits nothing,
-which means everything buildable is blocked on a question for `/reach:ideate`.
+memory of the documents"*, and only a fresh process answers them. It halts when a run succeeds and
+commits nothing, which means everything buildable is blocked on a question for `/reach:ideate`.
+
+A run that commits nothing is not always a blocked lane, so the supervisor reads how the run ended
+first. A run the API failed — a 429 or any 5xx, read from the result's typed status — is retried after
+a backoff that doubles with each failure in a row (`-ServerRetryMinutes`, capped by
+`-RetryCapMinutes`). A run that failed any other way halts naming the failure, which is nobody's
+design question. Each run also starts with background tasks disabled and a two-hour foreground limit,
+because `claude -p` kills whatever it left running when its turn ends: a verification sweep sent to the
+background is a sweep thrown away. A task killed that way is logged `KILLED AT EXIT`.
 
 > **This runs the agent with permission prompts disabled**, which is the only way an unattended loop
 > gets past its first tool call. It is **off unless you ask for it** — set `"unattended": true` on the
@@ -385,7 +413,7 @@ the value.
 ### `Verify-Gate.ps1` — the blocking gate
 
 A driver that **finds** its checks instead of listing them: one `.ps1` per check, defining one
-function named for the file, discovered by reading two directories — the six that ship here, and
+function named for the file, discovered by reading two directories — the nine that ship here, and
 your own. Adding a check never edits the driver.
 
 | Check | Fails when |
@@ -393,6 +421,7 @@ your own. Adding a check never edits the driver.
 | `DocumentCaps` | a document outgrows its line cap, a cap was never set, or nothing was measured at all |
 | `ArchiveImmutable` | the archive is edited, renamed or pruned — in the working tree or in a commit this branch carries, and additions are fine |
 | `ClaimsAreProven` | a unit is marked built with claims nothing proves; evidence names a claim no document makes; an `*(owed)*` mark sits where it should not; a built unit holds a question it does not owe |
+| `ContractIsDeclared` | a roster row has no unit document, a document's `**Contract:**` header is neither `none` nor `partial`, or prose asserts a unit's contract state that only its header may state |
 | `DocLinks` | a maintained document links to something that no longer exists |
 | `AdoptionCounts` | a recorded line count stops matching its file, so a stalled adoption stays visible |
 | `TriageLines` | a walkthrough's arrow line disagrees with the row it names — calling a built row owed, which parks a ready step, or naming an owed row without the mark, which sends the lane at work that is not there |
@@ -420,18 +449,19 @@ Your tiers are yours. The **contract** between them is not:
 
 ### `Prove-Gate.ps1` and `Prove-Lanes.ps1` — evidence none of it is decoration
 
-Fifty controls across two suites, run together:
+Eighty-three controls across two suites, run together:
 
 ```shell
 pwsh Scripts/reach.ps1 prove
 ```
 
-**Fifteen gate controls.** Each breaks one thing, requires the gate to go red **for that specific
+**Twenty-four gate controls.** Each breaks one thing, requires the gate to go red **for that specific
 check**, restores it, and requires green again.
 
-**Thirty-five lane, landing and audit controls.** Each breaks one assumption landing depends on and requires the refusal to
-come from the guard it names — the integration branch being checked out, a tree nobody verified, a
-lane on the wrong branch, a supervisor driving a lane from inside itself, a second holder of the lock.
+**Fifty-nine lane, landing, supervisor and audit controls.** Each breaks one assumption landing depends
+on and requires the refusal to come from the guard it names — the integration branch being checked out,
+a tree nobody verified, a lane on the wrong branch, a supervisor driving a lane from inside itself, a
+second holder of the lock, a builder trying to land.
 Landing advances a shared ref from objects while other work may be arriving, so it is the most
 dangerous code here and gets the most controls.
 
@@ -504,16 +534,16 @@ Two rules keep this from becoming the eight-thousand-line gate it replaced:
 
 Early, and honest about which parts have been through a fire.
 
-**Proven:** the gate and its six checks, the tier contract, the lane and landing guards, and the
-supervisor's decision about whether a run did anything — fifty controls, each watched to fail
-for its own named reason and pass again, by a script you can run.
+**Proven:** the gate and its nine checks, the tier contract, the lane and landing guards, the
+builder split, and the supervisor's decision about whether a run did anything — eighty-three
+controls, each watched to fail for its own named reason and pass again, by a script you can run.
 
-**Written, not yet weathered:** the four commands. They are a distillation of a process that ran daily
-on one large project for months, but their generic form here has not yet been through an adoption end
-to end. Expect the first repository that adopts to find the seams — that is what a 0.x is.
+**Weathered on one project:** the commands, lanes, builders and the unattended supervisor drive one
+downstream project daily, and most recent fixes are seams it found — a lane verb that only worked from
+the primary checkout, a session that could not release its own claim, an API outage read as a blocked
+lane. Each became a control that was watched red first.
 
-**Deliberately absent:** nothing structural now. What is missing is mileage — this has not yet driven a
-real project end to end, and the first repository that adopts will find seams. That is what a 0.x is.
+**Not yet:** a second adoption. One project's seams are not every project's, and that is what a 0.x is.
 
 ## Licence
 

@@ -49,14 +49,18 @@ MAIN_SLIDES = [{'title': 'Reach: I just wanted the character to walk',
  {'title': 'Give the design conversation its own place',
   'subtitle': 'Reach is a Claude Code plugin built around three kinds of work.',
   'bullets': ['/reach:ideate: decide what we are building and record the contract.',
-              '/reach:build: implement that contract and prove the behavior.',
-              '/reach:milestone: build the look and feel, then hand it to you to judge.'],
+              '/reach:build: implement and prove the layers outside presentation.',
+              '/reach:milestone: build and test presentation; hand you the experience.'],
   'payoff': 'Focus your attention on the decisions that need you.',
   'notes': 'The commands are /reach:ideate, /reach:build, and /reach:milestone. They divide work by who can '
            'judge the result. I judge design decisions in conversation. Tests judge behavior they can check. '
            'I judge the experience by using the actual build. The written agreement is the contract that '
            "later sessions read. This isn't a rigid sequence for every change: UI behavior can still need "
-           'tests, and a project with no human-judged outcomes may not need milestone. The plugin combines '
+           'tests. Code ownership follows the layer; verification follows the claim. Milestone owns '
+           'human.layer, including its controls, input, rendering, and the tests for assertable behavior '
+           'there. Build owns the other layers. Without human.layer, build owns all code; milestone can '
+           'still compose and tune an experience. A project with no human-judged outcomes may not need '
+           'milestone. The plugin combines '
            'these instructions with documents and executable checks. Adoption is covered in the appendix.',
   'source': 'README.md: Work — the loop; skills/ideate/SKILL.md; skills/build/SKILL.md; '
             'skills/milestone/SKILL.md'},
@@ -71,12 +75,15 @@ MAIN_SLIDES = [{'title': 'Reach: I just wanted the character to walk',
            'challenge a convenient answer before it becomes code. Ideate is instructed to give real '
            'tradeoffs and flag conflicts with the architecture. Here, we choose predictable movement. Notice '
            "that we've only settled what happens when there's no route at the moment of the click. We "
-           "haven't yet decided what happens if the route disappears during the walk.",
+           "haven't yet decided what happens if the route disappears during the walk. In an adopted "
+           'repository, ideate searches the archive before calling a decision missing. Past owner '
+           'rulings are recovered whole; an unapproved draft is offered as a proposal. The archive '
+           'records past direction, not automatic authority over the current contract.',
   'source': 'Fictional design decision; skills/ideate/SKILL.md; presenter metaphor'},
  {'title': 'Build turns the agreement into working behavior',
   'subtitle': '/reach:build must test the agreed behavior before calling it built.',
   'bullets': ['Build writes evidence before or with the code: a closed door leaves Pip in place.',
-              'It tests Pip’s position and the feedback that says the route is blocked.',
+              'It tests Pip’s position and the blocked-route state the presentation reads.',
               'It runs the project’s verification tiers, including the actual game build.',
               'The verification runner reports unavailable tiers as SKIPPED, never passed.'],
   'payoff': "Know what was checked, and what still wasn't.",
@@ -88,7 +95,11 @@ MAIN_SLIDES = [{'title': 'Reach: I just wanted the character to walk',
            'connection; the test itself must check meaningful behavior. Build writes evidence before or with '
            "the implementation so the test doesn't simply describe whatever code it ended up writing. "
            'Verification runs from cheap checks through the real build. An unavailable automated tier is '
-           'reported as skipped, and human acceptance remains separate.',
+           'reported as skipped, and human acceptance remains separate. Build proves the movement '
+           'state; milestone writes and tests the cue in the presentation layer. A state flip to built '
+           'and any other change read by a check must precede verification. Anything changed afterwards '
+           'must be verified again. Optional builders leave harness-dependent tiers to the integrator, '
+           'which runs every tier before landing; the appendix explains that split.',
   'source': 'Fictional scenario; templates/unit.md; skills/build/SKILL.md; README.md: Verify-All.ps1'},
  {'title': 'Then someone closes the door',
   'subtitle': '/reach:build records the missing decision and keeps independent work moving.',
@@ -102,21 +113,28 @@ MAIN_SLIDES = [{'title': 'Reach: I just wanted the character to walk',
            'implementation. In a real repository, the question includes the code location or observation '
            "that exposed the gap. A blocked claim doesn't have to stop the entire run: build can finish "
            'other work, land it, and pick the next buildable item. It stops when no independent work remains '
-           "or another stop condition applies. That doesn't require the optional unattended supervisor.",
+           "or another stop condition applies. That doesn't require the optional unattended supervisor. "
+           'A question is committed on the working lane even when the implementation cannot land yet. '
+           'Ideate reads additions on every local branch except integration and the primary branch, '
+           'so a newly created lane does not become an invisible inbox.',
   'source': 'Illustrative blocker; skills/build/SKILL.md; skills/ideate/SKILL.md: The inbox'},
  {'title': 'Decide once. Put the answer where it lasts.',
   'subtitle': '/reach:ideate turns the answer into the contract future sessions read.',
   'bullets': ['In ideate, we agree: if the route becomes blocked, Pip stops before the obstacle.',
               'Pip stays at the last valid position, and the game explains the interruption.',
-              'Ideate replaces the old wording, removes the question, and publishes the decision.',
-              'Build reads the updated contract and implements the settled rule.'],
+              'Ideate rewrites the claim and publishes the decision.',
+              'Build syncs the answer, removes its lane’s question, and implements the rule.'],
   'payoff': 'The answer becomes part of the project, not another message to dig up.',
   'notes': 'Ideate checks the premise, then we decide how the game should behave. The answer replaces the '
            "relevant contract text. It doesn't become another comment underneath an unresolved question. Old "
            'wording leaves the active document, and Git keeps the history. Publishing matters too: a '
            "decision that exists only in my checkout hasn't reached the builder. When a new claim needs "
            'implementation, its missing evidence is recorded explicitly. The next session can see both the '
-           'decision and the work still owed.',
+           'decision and the work still owed. If the question is already on integration, ideate deletes '
+           'it with the answer. If it exists only on a lane, the answering commit identifies the lane, '
+           'unit, and claim using Answers <lane>\'s Open under <unit> claim <N>. The originating lane '
+           'reads those answers after syncing and deletes the resolved Open itself. A clean merge '
+           'alone does not remove the line beside the rewritten claim.',
   'source': 'Fictional resolution; skills/ideate/SKILL.md; templates/unit.md; scripts/lib/Common.ps1: '
             'Invoke-ReachPublish'},
  {'title': 'The door is locked. What about the window?',
@@ -189,12 +207,44 @@ MAIN_SLIDES = [{'title': 'Reach: I just wanted the character to walk',
            'best-effort. If publishing fails after the merge, retry publish. Team repositories can retain '
            'reviewer-controlled landing through push mode.',
   'source': 'skills/ideate/SKILL.md: Landing; scripts/Land.ps1; scripts/lib/Common.ps1'},
+ {'title': 'Verification takes longer. Keep the work moving.',
+  'subtitle': '/reach:iterate carries build work across runs while you follow progress.',
+  'bullets': ['As Pip’s game grows, each full test and build cycle takes longer.',
+              '/reach:iterate starts a supervisor that runs build in fresh agent processes.',
+              'Each run finishes its checks; the next picks up from committed work.',
+              'You can step away, follow progress, or request a stop after the current run.'],
+  'payoff': 'Long verification no longer means waiting around to start the next run.',
+  'notes': 'The door and window cases are small, but a growing game accumulates tests, integration '
+           'checks, and a real artifact to build. Waiting for each long cycle and then returning to '
+           'start another session becomes its own job. /reach:build already continues through '
+           'independent work within a run. /reach:iterate adds a supervisor that carries that work '
+           'across fresh agent processes when runs finish, while the observing chat follows short '
+           'progress events. It saves supervision time; it does not make the tests themselves faster '
+           'or skip required verification. Each run keeps its verification in the foreground and '
+           'finishes its checks before landing. A fresh process starts per run, not per test or tier, '
+           'so the next session rereads the documents and resumes from committed work without '
+           'stretching one conversation indefinitely. A long quiet verification call is not treated '
+           'as a dead supervisor: the lane lock determines whether it is still running. '
+           'Unattended operation requires explicit opt-in with unattended: true and disables agent '
+           'permission prompts. The same lock excludes a second supervisor or a manual build in '
+           'that lane. Start from the primary checkout with /reach:iterate; status, watch, and stop '
+           'are also available. A stop request lets the run in flight finish. Ordinary operation '
+           'halts when a successful run commits nothing and has nothing to wait for; unanswered '
+           'design questions go back to ideate. API 429/5xx failures retry with capped backoff; '
+           'other failures halt with their cause rather than being called design blockers. With '
+           'builders configured, iterate follows the integrator and seeded builders as a set; an '
+           'integrator can idle and a builder can wait for its ready tip to land. Terminal equivalents '
+           'are pwsh Scripts/reach.ps1 run build, run build -Status -Follow, and run build -Stop. '
+           'Logs live under Logs/reach-lane. These are workflow mechanisms, not a claim that our '
+           'fictional Pip example was benchmarked.',
+  'source': 'User’s long-verification use case; README.md: Unattended; '
+            'skills/iterate/SKILL.md; scripts/Run-Lane.ps1'},
  {'title': 'Pip can get inside. Does it feel right?',
   'subtitle': '/reach:milestone builds the experience. You decide whether it works.',
-  'bullets': ['Milestone refines the movement feedback using the behavior build has already proved.',
+  'bullets': ['Milestone builds and tests the cues over the movement state build has proved.',
               'It drives the walkthrough on the real build, then hands that build to you.',
               'You judge: does Pip’s response make sense, or do the controls seem broken?',
-              'Milestone records your feedback and keeps the walkthrough open until you confirm it.'],
+              'Milestone records your verdict; only your confirmation accepts the experience.'],
   'payoff': 'You decide when the experience works.',
   'notes': 'Milestone owns the presentation work as well as the handoff. It adjusts visual and audio '
            'feedback, tries the walkthrough itself, and asks the owner for the final verdict. If it finds '
@@ -207,13 +257,38 @@ MAIN_SLIDES = [{'title': 'Reach: I just wanted the character to walk',
            "blocked-route cue flashes too quickly or sounds like success. That's a presentation problem we "
            'can now judge. A failure the owner reports stays in the document in their words. A screenshot or '
            "completion report doesn't close the walkthrough; owner confirmation does. Automated checks still "
-           'cover UI behavior they can assert.',
+           'cover UI behavior they can assert, and milestone writes those checks for its layer. A defect '
+           'in that layer is milestone’s own to repair; an unsettled contract goes to ideate. The '
+           'walkthrough names the specific evidence rows it needs. Unrelated unfinished claims in the '
+           'same unit do not hold it up. Milestone records Confirmed lines in the owner’s words. '
+           'Ideate preserves any lasting decisions and deletes the walkthrough only when wholly '
+           'confirmed; confirming three steps of four leaves the fourth open.',
   'source': 'Fictional walkthrough; skills/milestone/SKILL.md'},
+ {'title': 'The tests passed. You found a bug.',
+  'subtitle': 'The rule was clear. The tests missed a case you encountered while playing.',
+  'bullets': ['Pip should stop before the door. In your playthrough, he crosses it.',
+              'You report the bug. Ideate connects it to the movement rule.',
+              'Build adds a test that catches the crossing, fixes it, and reruns the checks.',
+              'You retry the real build and confirm the fix.'],
+  'payoff': 'Your feedback becomes a tested repair, and you confirm the result.',
+  'notes': 'This is another fictional episode, not a reported application test result. The contract '
+           'already says Pip stops before the obstacle, but our earlier test missed a crossing during '
+           'one movement update. Milestone records a Not working line in the owner’s words. Ideate '
+           'triages it with an arrow naming the claim, evidence row, and responsible lane; milestone '
+           'does not guess the fix from an untriaged symptom. Because movement is outside the '
+           'presentation layer, build owns this repair. A proven claim that still fails needs a '
+           'stronger fixture: add an owed row for the crossing case while retaining the original proof. '
+           'If the fault were in presentation code, milestone would implement and test that repair. '
+           'The arrow is refreshed as the work becomes proven, while the owner’s report remains. '
+           'Passing tests sends the build back for judgment. Confirmation retires only the steps the '
+           'owner actually names; ideate captures any new rules before deleting the completed entry.',
+  'source': 'Fictional regression; skills/ideate/SKILL.md: The owner’s verdict; '
+            'skills/milestone/SKILL.md: The owner’s verdict, Closing one'},
  {'title': "Pip gets warm. Tomorrow's session can pick up.",
   'subtitle': 'Each skill leaves the next session something concrete to work from.',
   'bullets': ['Ideate maintains the current contract: openings, not the old door-only rule.',
               'Build records the evidence and leaves unfinished claims and questions visible.',
-              'Milestone keeps the walkthrough open until you accept the experience.',
+              'Milestone records your acceptance; ideate retires the completed walkthrough.',
               'The next build session rereads the documents and picks up the next buildable task.'],
   'payoff': 'Less reconstruction when you start again.',
   'notes': "Pip can get to the fireplace, and the reasoning hasn't disappeared into a long chat. The current "
@@ -222,7 +297,10 @@ MAIN_SLIDES = [{'title': 'Reach: I just wanted the character to walk',
            'recollection. Keeping that working record small helps the next session recover without carrying '
            "every abandoned explanation. It doesn't guarantee perfect memory. It gives us somewhere reliable "
            "to restart. That's the point of the story: I can delegate more implementation while staying "
-           "engaged with what we're building.",
+           "engaged with what we're building. The same deletion principle applies to the agent’s "
+           'memory index: once a lesson is stated in a document or enforced by a guard, remove its '
+           'whole index entry. The note remains searchable on disk. Shortening entries to fit keeps '
+           'the accumulation problem alive. Reach explains this practice but does not enforce agent memory.',
   'source': 'Fictional story resolution; current Reach mechanisms'},
  {'title': 'What changed in my own work',
   'subtitle': 'Pip is fictional. These benefits come from my experience.',
@@ -243,17 +321,18 @@ MAIN_SLIDES = [{'title': 'Reach: I just wanted the character to walk',
               'review.',
               'Team repositories can use the verification layer with their existing review process.',
               'Contracts and worktrees take upkeep. A small utility may not need them.',
-              'The repository documents 50 negative controls; the packaged workflow still needs adoption '
-              'mileage.'],
+              '83 controls; used daily on one downstream project. A second adoption is still untested.'],
   'notes': 'This is most useful when understanding and reviewing the work have become the bottleneck. It '
            'also has costs: someone has to maintain the contracts, evidence, and lanes. For a small or '
            'mostly maintenance project, that can be more process than the work needs. Team repositories can '
            'take the verification layer without replacing their review practices. The documented control '
-           'suites include 15 gate controls and 35 lane, landing, and audit controls. Those were not rerun '
-           'to prepare this presentation. The README still reports limited end-to-end adoption experience '
-           "for the generic plugin workflow. That's the current position: useful mechanisms and encouraging "
-           'personal experience, with more real-project mileage needed.',
-  'source': 'README.md: Is this for you?, Status; commit d6fa11d'}]
+           'suites include 24 gate controls and 59 lane, landing, supervisor, and audit controls, with '
+           'nine gate checks. Counts were checked against source; the proof suites were not rerun '
+           'to prepare this presentation. The README now reports daily use of the commands, lanes, '
+           'builders, and unattended supervisor on one downstream project. Recent repairs came from '
+           'that use. A second adoption remains untested, so this is experience with one project '
+           'rather than broad validation.',
+  'source': 'README.md: Is this for you?, Status; scripts/Prove-Gate.ps1; scripts/Prove-Lanes.ps1'}]
 
 BENEFITS_SLIDE = {'title': 'Appendix: the practical benefits',
  'subtitle': "What I've observed, and what the design should help with.",

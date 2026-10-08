@@ -18,7 +18,7 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 
 OUT = Path(__file__).resolve().parent
-VERSION = '1.0'
+VERSION = '1.1'
 OUTPUT_STEM = f'Reach-developer-presentation-v{VERSION}'
 from story_slides import MAIN_SLIDES, BENEFITS_SLIDE
 
@@ -45,9 +45,9 @@ SLIDES = MAIN_SLIDES + [BENEFITS_SLIDE,
  'subtitle': 'The decisions and checks live with the repository.',
  'appendix': True,
  'bullets': ['process.json: document locations, size limits, evidence conventions, checks, and lanes.',
-             "Architecture document: the system's structure, shared rules, and list of units.",
-             'Unit documents: responsibilities, behavior, dependencies, and evidence.',
-             'Walkthroughs: the experiences that still need human acceptance.',
+             'Architecture + separately capped roster: shared rules and the list of units.',
+             'Unit documents: contract readiness, claims, dependencies, and evidence.',
+             'Walkthroughs: human acceptance, with specific evidence rows as prerequisites.',
              'Scripts/reach.ps1: the entry point for verification and lane operations.'],
  'notes': 'The architecture document is called the spine in Reach. Unit documents describe smaller parts of '
           'the system. Their state is built or unbuilt; a new claim on a built unit can carry owed evidence '
@@ -55,14 +55,20 @@ SLIDES = MAIN_SLIDES + [BENEFITS_SLIDE,
           "the behavior. The script entry point resolves the installed plugin so the repository doesn't "
           "hard-code a versioned cache path. The template's reach version, 0.0.0, is a placeholder; adoption "
           'records the actual baseline. Audit compares that baseline with the running plugin in both '
-          'directions and reports which plugin path answered.',
- 'source': 'templates/process.json; templates/unit.md; README.md: process.json'},
+          'directions and reports which plugin path answered. The roster can be its own capped '
+          'document, so splitting a unit does not consume the architecture’s line budget. The '
+          'Contract header declares none when missing decisions prevent starting, or partial when '
+          'the written part can be built; a whole contract omits the header. ContractIsDeclared '
+          'checks those declarations and missing roster documents. Walkthrough Needs names evidence '
+          'rows, never whole units: an unrelated unfinished row must not park a ready experience.',
+ 'source': 'templates/process.json; templates/unit.md; templates/roster.md; templates/walkthroughs.md; '
+           'scripts/gate-checks/ContractIsDeclared.ps1; README.md: process.json'},
     {'title': 'Appendix: checking the process',
  'subtitle': 'Use the same entry point locally and in automation.',
  'appendix': True,
  'bullets': ['pwsh Scripts/reach.ps1 gate — check repository constraints and evidence links.',
              'pwsh Scripts/reach.ps1 all — run the gate and automated verification tiers.',
-             'pwsh Scripts/reach.ps1 prove — exercise the 50 supplied negative controls.',
+             'pwsh Scripts/reach.ps1 prove — exercise the 83 supplied controls.',
              'pwsh Scripts/reach.ps1 audit — find adoption gaps and version mismatches.',
              'Add custom checks when a real defect shows the need, then prove they can fail.'],
  'notes': 'A custom check is a PowerShell file in the configured checks directory with a matching '
@@ -72,9 +78,32 @@ SLIDES = MAIN_SLIDES + [BENEFITS_SLIDE,
           'changes and branch commits, including deletion of the last archive file. Controls can also check '
           'diagnostic wording. An unset document cap is now reported as missing configuration, and audit '
           'identifies version drift. Optional unattended operation requires explicit opt-in and disables '
-          'agent permission prompts. Its supervisor refuses a namespaced command if the plugin is absent '
-          'from the installed-plugin registry; that is a presence check, not full availability validation.',
- 'source': 'README.md: Verify, Writing your own checks, Unattended; scripts/Audit.ps1; scripts/Run-Lane.ps1'},
+          'agent permission prompts. The suites contain 24 gate controls and 59 lane, landing, '
+          'supervisor, and audit controls. Nine gate checks include ContractIsDeclared, TriageLines, '
+          'and WalkthroughReferences, keeping contract readiness, feedback routing, and live '
+          'walkthrough references queryable. Counts were checked in source; these suites were not '
+          'rerun for this presentation.',
+ 'source': 'README.md: Verify, Writing your own checks; scripts/Audit.ps1; '
+           'scripts/Prove-Gate.ps1; scripts/Prove-Lanes.ps1'},
+    {'title': 'Appendix: many builders, one game harness',
+ 'subtitle': 'Use the split when an editor, emulator, or device limits parallel work.',
+ 'appendix': True,
+ 'bullets': ['Each builder claims a unit and proves the tiers that can run without the harness.',
+             'A builder marks its proven commit ready. It never lands.',
+             'The integrator merges ready commits, runs every tier over the batch, and lands.',
+             'When every tier runs anywhere, an ordinary second lane is simpler.'],
+ 'notes': 'This is optional. Declare builders on the build lane and mark harness-dependent tiers '
+          'builders: false. lane seed build-1 creates a separate worktree without the integrator’s '
+          'harness warm-up. builders take claims a unit before writing; builders ready marks a clean, '
+          'proven HEAD. The integrator reads builders pending, merges ready tips, verifies the combined '
+          'tree through every tier, and lands it. A rejection includes a reason; the builder repairs '
+          'and re-proves its work. land refuses builders. This does not turn a skipped required tier '
+          'into a pass: the harness tiers are explicitly assigned to the integrator. The README '
+          'reports about 65 proven rows per day in the preceding week and about 240 during the first '
+          'two days with two builders. The day before the split already reached 156, so this is a '
+          'qualified observation from one project, not a controlled benchmark or a promised speedup.',
+ 'source': 'README.md: Builders, when one harness is the bottleneck; scripts/Builders.ps1; '
+           'scripts/Verify-All.ps1; skills/build/SKILL.md: Builders'},
 ]
 
 
@@ -97,13 +126,13 @@ def build(output_name=f'{OUTPUT_STEM}.pptx'):
     prs = Presentation()
     prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
     prs.core_properties.title = f'Reach — developer presentation v{VERSION}'
-    prs.core_properties.subject = 'Approved content and flow; visual style and assets deferred'
+    prs.core_properties.subject = 'Updated workflow and Pip story; plain editable edition'
     prs.core_properties.version = VERSION
     prs.core_properties.author = 'Amelia Bleeker'
     main_count = sum(not item.get('appendix', False) for item in SLIDES)
     appendix_count = len(SLIDES) - main_count
     markdown = [f'# Reach — developer presentation v{VERSION}',
-                f'{main_count} main slides + {appendix_count} appendix slides. Approximately 20-25 minutes plus discussion. '
+                f'{main_count} main slides + {appendix_count} appendix slides. Approximately 25-30 minutes plus discussion; appendices optional. '
                 'Plain editable layout; visual style and assets intentionally deferred.',
                 'Pip and the cottage fireplace are a fictional teaching story. Speaker notes distinguish repository mechanisms, presenter observations, '
                 'inferred benefits, and fictional events. Developer remarks in subtitles are illustrative, not research quotations. '
