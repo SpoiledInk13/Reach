@@ -157,6 +157,12 @@ that forces it — a file and line, a measured number, the claim or spine sectio
 **No options and no recommendation.** A question from a run that parked rather than dug is a
 hypothesis, and its proposed fix goes stale faster than its problem.
 
+**Name what the archive holds on it.** Where the repository has one, much of what a builder parks on
+the owner already ruled there, so grep the subject over the archive `process.json` names and name any
+record that decides it in the line. That is a pointer, never an answer: you build nothing from a
+record, because whether it still holds is the ideate command's call, and naming it turns that call from
+a search into a read.
+
 **A finding with no obvious home is still an `Open:` line, never a heading of your own.** The inbox
 matches a closed set of markers, so a new bold lead-in files into nothing however apt it reads. Where a
 measurement is what blocks a claim, **carry the numbers into the line** rather than a path to them: the

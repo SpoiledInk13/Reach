@@ -240,6 +240,19 @@ The line was written by a run that parked rather than dug, so it is a hypothesis
 premise against the code and the spine before answering.** Expect the question to be smaller than it
 reads, or already answered.
 
+**And against the archive, before calling anything unwritten.** Where the repository adopted a prior
+corpus, the unit documents were distilled from its summaries, and the detail the owner ruled on — in
+its decision records above all, the newest most — is where a builder digging deep enough finds a unit
+gone silent. The archive is not authoritative about the present, but it is the owner's past direction,
+and re-asking for it makes them state it twice. So grep the subject over the archive `process.json`
+names — titles first — before answering, and before writing that a thing is undefined: a live
+document's *no source holds this* is a claim like any other, and one stood false over a tool design the
+archive held whole. **What the owner decided is ported whole**, ratified or a draft recording their
+ruling, because a simplification is a design call they did not make: a ratified density field was once
+answered with *a sphere*, and the owner corrected it. A draft nobody ruled on is a proposal, put to the
+owner rather than ported or dropped, and what a later record superseded is left. The commit says which
+record a claim came from; the document cites none.
+
 **The owner's verdict is in the inbox too, and it is disposed of differently.** A step the owner saw
 fail is written under the walkthrough as a `**Not working:**` line in the owner's words. It is not a
 question a lane asked — it is a symptom a person watched — so triage it into what it is a symptom of,
