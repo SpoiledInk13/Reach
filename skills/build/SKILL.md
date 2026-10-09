@@ -116,12 +116,18 @@ question: take the next unit. A run starts by continuing the units its lane alre
 (`builders held`), and **drops one** (`builders drop <unit>`) only when nothing in it is left that the
 lane can build *and* its work in it is on integration — dropped earlier, the next holder writes over a
 document whose last edit has not landed. A take is the lane's, not the run's, and crosses runs.
+**Continuing never outranks the top walkthrough's needs**: at every pick, not only a run's first, a row
+the walkthrough needs that the lane can build comes before its own units' other work. Read which needed
+rows stand behind nothing unproven, and `builders held` for which lane holds each one's unit.
 
 **A builder takes what needs no harness**: a claim whose evidence runs in a tier `process.json` does not
 mark `"builders": false`, and the code under it. **Whatever the harness must see is the integrator's.**
 That is not a question either: the builder leaves it, and drops the unit once only such claims remain in
-it, so the integrator can take it. `reach.ps1 all` in a builder reports those tiers as the integrator's
-and never runs them.
+it, so the integrator can take it — **once its work there is merged into the integrator's lane, never
+waiting for integration**, because the integrator is then the only lane that can take the unit and already
+holds every edit the builder made in it. Waiting for the land instead held one project's unit with a
+harness-only row standing in front of four rows a walkthrough needed, none of which any lane could start.
+`reach.ps1 all` in a builder reports those tiers as the integrator's and never runs them.
 
 **A builder proves with `reach.ps1 all` green over its committed tree, then marks that tip ready**,
 `reach.ps1 builders ready`, **run inside the builder** — it marks the checkout's HEAD, and from anywhere
