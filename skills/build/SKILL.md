@@ -234,6 +234,14 @@ never reaches, so the defect that is green alone and red together is invisible t
 records nothing a whole run would** — a per-check baseline taken over a subset is taken against a
 different set, so recording it disarms the guard by the way the tier is most often run.
 
+**A land that changes nothing a tier reads runs the gate alone.** Recording a walkthrough's verdict or a
+confirmation changes a process document no test parses, and half of one lane's lands were that and nothing
+else, each behind a whole set costing about an hour. List what no tier reads in `process.json`'s
+`unread` once you have measured it — a document a test parses is read, however document-like — and
+`Verify-All` decides from what changed since the tree met the integration branch; `-Plan` prints the
+decision. A tree with no change at all still runs the whole set: its verification is a run this one cannot
+see.
+
 **Record what the slow tier costs and how long the harness had been up**, appended rather than replaced,
 wherever a run reuses a warm process. How often that tier runs is what decides whether its cost is worth
 paying, and a set getting slower reads the same whether the set grew or the process did — a warm harness

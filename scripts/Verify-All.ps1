@@ -23,6 +23,12 @@
         reported INTEGRATOR -- not a skip, which would hold the builder on a tier it may never run,
         and never a pass, which would claim a proof nobody made.
 
+      * A change no tier reads runs the gate alone. process.json's `unread` lists the path prefixes
+        no tier reads -- process documents, say -- and when every path changed since this tree met the
+        integration branch starts with one of them, the tiers are not run and the verdict says why. No
+        change at all is not this case: that tree's verification is a run this one cannot see. Empty
+        by default, so nothing is skipped until a project measures what its tiers read.
+
     Exit 0 all tiers passed. 1 something failed. 3 something was skipped. 2 refused to start.
 
 .PARAMETER Root
@@ -36,13 +42,21 @@
 
 .PARAMETER SkipGate
     Run the tiers without the gate. For a tight inner loop only; a land runs both.
+
+.PARAMETER Whole
+    Run every tier whatever changed.
+
+.PARAMETER Plan
+    Print what changed since the integration branch and what a run would cover, and run nothing.
 #>
 [CmdletBinding()]
 param(
     [string]$Root,
     [string]$Tier,
     [switch]$List,
-    [switch]$SkipGate
+    [switch]$SkipGate,
+    [switch]$Whole,
+    [switch]$Plan
 )
 
 Set-StrictMode -Version Latest
@@ -75,6 +89,40 @@ if ($List) {
         $how = if (Get-Field $t 'human' $false) { 'the owner, on a build they run' } else { Get-Field $t 'run' '(nothing declared)' }
         Write-Host ("{0,-4} {1,-34} {2,-10} {3}" -f (Get-Field $t 'id' '?'), (Get-Field $t 'what' ''), (Get-Field $t 'cost' ''), $how)
     }
+    exit 0
+}
+
+# ------------------------------------------------------------------------------------- scope
+
+# A walkthrough verdict landed behind every tier, an hour of them, though no tier read the one file it
+# changed -- half of one lane's lands, measured. What changed is the merge base with the integration
+# branch to HEAD, plus whatever is uncommitted, and a rename counts on both sides.
+$Unread = @(Get-Field $Process 'unread' @() | Where-Object { $_ })
+$IntegrationBranch = Get-Field (Get-Field $Process 'integration' $null) 'branch' 'develop'
+$Changed = $null
+if (-not $Whole -and -not $Tier -and -not $SkipGate -and $Unread.Count -gt 0) {
+    $mergeBase = Get-GitValue -Path $RepoRoot -Arguments @('merge-base', $IntegrationBranch, 'HEAD')
+    if ($mergeBase) {
+        $paths = @()
+        foreach ($a in @(@('diff', '--name-only', '--no-renames', $mergeBase, 'HEAD'),
+                         @('diff', '--name-only', '--no-renames', 'HEAD'),
+                         @('ls-files', '--others', '--exclude-standard'))) {
+            $paths += @((Invoke-Git -Path $RepoRoot -Arguments (@('-c', 'core.quotepath=off') + $a)).Lines)
+        }
+        $Changed = @($paths | Where-Object { $_ } | Sort-Object -Unique)
+    }
+}
+function Test-Unread([string]$Path) { foreach ($u in $Unread) { if ($Path.StartsWith($u)) { return $true } }; return $false }
+$Read = @($Changed | Where-Object { $_ -and -not (Test-Unread $_) })
+$GateOnly = $null -ne $Changed -and $Changed.Count -gt 0 -and $Read.Count -eq 0
+
+if ($Plan) {
+    $why = if ($Unread.Count -eq 0) { 'process.json declares no unread paths' }
+           elseif ($null -eq $Changed) { 'no comparison with the integration branch was made' }
+           elseif ($Changed.Count -eq 0) { "nothing changed since $IntegrationBranch" }
+           else { "{0} of {1} changed path(s) read by a tier" -f $Read.Count, $Changed.Count }
+    Write-Host ("Verify-All plan -- {0}" -f $(if ($GateOnly) { "the gate alone: none of $($Changed.Count) changed path(s) is read by a tier" } else { "every tier: $why" }))
+    foreach ($p in @($Changed | Where-Object { $_ })) { Write-Host ("  {0} {1}" -f $(if (Test-Unread $p) { 'unread' } else { 'READ  ' }), $p) }
     exit 0
 }
 
@@ -127,6 +175,11 @@ if (-not $SkipGate -and -not $Tier) {
     if ($code -eq 0) { Add-Result 'gate' 'PASS' }
     elseif ($code -eq 2) { Add-Result 'gate' 'SKIPPED' 'refused to start' }
     else { Add-Result 'gate' 'FAIL' 'the failures are listed above' }
+}
+
+if ($GateOnly) {
+    Add-Result 'tiers' 'GATE' ("none of {0} changed path(s) since {1} is read by a tier" -f $Changed.Count, $IntegrationBranch)
+    $Tiers.Clear()
 }
 
 foreach ($t in $Tiers) {
@@ -192,6 +245,10 @@ if ($failed.Count -gt 0) {
 if ($skipped.Count -gt 0) {
     Write-Host ("VERDICT: INCOMPLETE -- {0} skipped, nothing failed. A skip is not a pass." -f $skipped.Count) -ForegroundColor Yellow
     exit 3
+}
+if ($GateOnly) {
+    Write-Host "VERDICT: PASS -- the gate passed, and nothing any tier reads has changed" -ForegroundColor Green
+    exit 0
 }
 $left = @($results | Where-Object { $_.Verdict -eq 'INTEGRATOR' })
 if ($left.Count -gt 0) {

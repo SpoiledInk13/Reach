@@ -445,7 +445,12 @@ Your tiers are yours. The **contract** between them is not:
   into a pass: a green that quietly covers less than yesterday is worse than a failure, because it is
   a failure you will not go looking for;
 - a tier marked `human` is never run. If an outcome can only be verified by looking at it or
-  listening to it, nothing that runs may claim otherwise.
+  listening to it, nothing that runs may claim otherwise;
+- a change **no tier reads** runs the gate alone. `unread` in `process.json` lists the path prefixes
+  no tier reads, and when every path changed since the tree met the integration branch starts with one,
+  the verdict says so instead of running the tiers; `-Plan` prints that decision and runs nothing. It is
+  empty until you measure what your tiers read — a document a test parses is not unread, however
+  document-like it looks.
 
 ### `Prove-Gate.ps1` and `Prove-Lanes.ps1` — evidence none of it is decoration
 
