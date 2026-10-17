@@ -194,6 +194,13 @@ place a blocker goes** — never memory, never the report alone.
    the project declares for it. Something assertable missing in a layer *below* this one is a blocker,
    not a test to write here; something assertable wrong *in* this layer is this command's own defect
    and its own fix.
+   **While working, run only what the change reaches** — the evidence over the surface being changed, by
+   name — **and the whole set once per land, over the tip that lands, with the integration branch synced
+   in before it rather than after.** Measured once: forty whole runs of about an hour in six days against
+   nineteen lands that changed code, the extra ones started after a sync bringing in work the integration
+   branch had already verified, or over an attempt the named evidence would have answered first. A land
+   that only records the owner's words changes nothing a tier reads and runs the gate alone, where
+   `process.json` lists what is unread.
 6. Produce the real artifact — the project's most expensive tier, the one that builds what ships.
 7. **Drive it first.** Take the build through the walkthrough's sentence the way a user would, with no
    developer shortcuts, and capture what it looks like at each step. Read every capture against the
