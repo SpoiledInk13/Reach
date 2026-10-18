@@ -43,8 +43,8 @@ the unit document wants correcting — say so rather than coding around it.
    filed as a question — there is no claim to file one under, and the declaration is already the record
    that it is owed.
 2. Read the roster. Take the earliest unit with a claim you can build, or the next unbuilt claim inside
-   a unit already in progress. If the project has a human-verified document, what its top entry needs
-   comes first: a walkthrough waiting on its units leaves that command with no work. **A dependency
+   a unit already in progress. If the project has a human-verified document, what its walkthroughs in
+   progress need comes first, in order, then what the one on deck needs: a walkthrough waiting on its units leaves that command with no work. **A dependency
    being `unbuilt` does not block a claim** — what a claim reads from a unit that does not exist yet is
    stood in for at a named boundary, and the document says which under *Waiting on other units*. A
    dependency blocks a claim only when the thing it would stand in for is the thing the claim is about.
@@ -116,8 +116,8 @@ question: take the next unit. A run starts by continuing the units its lane alre
 (`builders held`), and **drops one** (`builders drop <unit>`) only when nothing in it is left that the
 lane can build *and* its work in it is on integration — dropped earlier, the next holder writes over a
 document whose last edit has not landed. A take is the lane's, not the run's, and crosses runs.
-**Continuing never outranks the top walkthrough's needs**: at every pick, not only a run's first, a row
-the walkthrough needs that the lane can build comes before its own units' other work. Read which needed
+**Continuing never outranks the walkthroughs' needs**: at every pick, not only a run's first, a row
+a walkthrough in progress or on deck needs that the lane can build comes before its own units' other work. Read which needed
 rows stand behind nothing unproven, and `builders held` for which lane holds each one's unit.
 
 **A builder takes what needs no harness**: a claim whose evidence runs in a tier `process.json` does not

@@ -319,9 +319,15 @@ its place in the list, and for the same reason: the list moves.
 **A walkthrough is deleted here, and by nothing else**, in the commit that drains its last
 confirmation — which is why the look lane no longer deletes one. A confirmation is the only record
 that the owner has seen a thing work, and the act that acknowledged it used to be the act that
-destroyed it. Nothing waits on the closing: the active walkthrough is the first **not wholly
-confirmed**, so a confirmed one is already out of both lanes' way and closing it is tidying rather
-than unblocking.
+destroyed it. Nothing waits on the closing: a wholly confirmed walkthrough is one neither lane
+works, so it is already out of both lanes' way and closing it is tidying rather than unblocking.
+
+**A walkthrough in progress takes no new direction.** Above the document's `**On deck.**` line the
+owner is looking at builds, and what this command writes there is their verdicts' triage and nothing
+else; a new step, a new needed row the verdicts did not ask for, or a sentence widening the entry goes
+to the on-deck walkthrough or one below it. One project's owner set this rule with two walkthroughs in
+progress at once and new direction still arriving: an entry that grows while it is being watched never
+closes.
 
 **A `→` line is refreshed in the commit that drains what it names.** It is not a note about the past,
 it is what the milestone command reads to learn what a step waits on, so a line left behind after the
@@ -353,7 +359,7 @@ verdict is a stalled walkthrough rather than a note.
 
 **Before you stop, say whether the milestone command can act.** It reaches the owner nowhere else: where
 presentation is a separate lane this command cannot start, a walkthrough that is ready waits exactly as
-long as it takes a person to notice it is. The top walkthrough can be taken when no row it needs is
+long as it takes a person to notice it is. Each walkthrough in progress, and the one on deck, is read alike: it can be taken when no row it needs is
 unproven on a unit reading `unbuilt`, no `Open:` line stands under it, and every `Not working:` line
 carries a `→` line; it waits on **the owner** rather than on work when every one of those arrows names
 something built and proven. **The block is a row's, never a unit's**: a proven row is as finished on a

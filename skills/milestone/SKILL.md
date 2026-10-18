@@ -4,8 +4,8 @@ description: Build the layer only a person can verify — how the software looks
 
 # Milestone
 
-Takes the top walkthrough from the project's human-verified document, builds the presentation it
-needs, hands the owner a real build, and records what they confirm of it.
+Takes the walkthroughs in progress in the project's human-verified document, then the one on deck,
+builds the presentation each needs, hands the owner a real build, and records what they confirm of it.
 
 It owns the presentation layer — `process.json`'s `human.layer`: the look, and the code that draws it.
 
@@ -54,8 +54,14 @@ what catches that.
 
 ## What it reads
 
-The human-verified document — an ordered list, capped. The top entry is the active one. There is no
-roadmap and no archive: a confirmed walkthrough is **deleted** by the ideate command, not moved. **The active walkthrough is the first not wholly confirmed**, so one waiting to be closed is never what this lane is working on.
+The human-verified document — an ordered list, capped, **split by an `**On deck.**` line**. Every entry
+above the line is **in progress**: this lane has handed the owner a build of it, and it takes their verdicts
+and the fixes those need, never new direction. The first below it is **on deck**, where new direction goes.
+The lane works the entries in progress in order, and **moves the line past the on-deck entry in the commit
+that hands the owner that entry's first build**, which is the one way an entry comes to be in progress, so
+the line always says which walkthroughs the owner is looking at. There is no roadmap and no archive: a
+confirmed walkthrough is **deleted** by the ideate command, not moved, and one waiting to be closed is
+never what this lane is working on.
 
 Also the documents of the units the entry needs, and the spine. They say what exists and what it does;
 this command decides only how it presents, directed by whatever mockups or direction the owner has
@@ -172,7 +178,7 @@ place a blocker goes** — never memory, never the report alone.
    as on a built one, and stopping on the state once held a walkthrough behind a unit that was unbuilt
    only for rows the walkthrough never used, with every builder row it needed proven. Where the entry
    cannot start, say so in the report and move to the
-   next walkthrough you can build, stopping when there is none, rather than working in the same units as
+   next entry in progress you can build, then to the one on deck, stopping when there is none, rather than working in the same units as
    the build command. **That is not a blocker and it is never filed as one.** The state is already
    recorded and the dependency is already named, so the line says nothing new, and it cannot be answered
    by writing a claim — building the unit is the build command's and is already its backlog.
@@ -258,8 +264,8 @@ leaves the walkthrough standing with the fourth and this lane carries on with th
 confirmation can settle a rule no document holds — one project's *those guides are right to hide*
 settled which of two views may draw a trajectory at all — and deleting the walkthrough here would
 destroy that before anyone had read it. Writing the final `Confirmed:` line is this lane's last act on
-one, and nothing waits on the closing: a wholly confirmed walkthrough is no longer the active one, so
-the next is already this lane's.
+one, and nothing waits on the closing: a wholly confirmed walkthrough is no longer one this lane works,
+so the next is already this lane's.
 
 Nothing else changes. A design detail the shipped look now expresses is the ideate command's to
 delete, and a rule a confirmation settled is its to write.

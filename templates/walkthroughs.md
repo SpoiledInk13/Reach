@@ -1,7 +1,11 @@
 # Walkthroughs
 
-Ordered. The top entry is the active one. A verified walkthrough is **deleted**, not archived — git
-history is the record, and a completed-work roll is how a document that should shrink starts growing.
+Ordered, and split by the `**On deck.**` line: an entry above it is **in progress**, taking the owner's
+verdicts and their fixes and never new direction, and the first below it is **on deck**, where new
+direction goes. A verified walkthrough is **deleted**, not archived — git history is the record, and a
+completed-work roll is how a document that should shrink starts growing.
+
+**On deck.** Every entry above this line is in progress; the first below it is the next one started.
 
 <!--
     Each entry is ONE SENTENCE describing a cold start, and its definition of done is that sentence
