@@ -148,7 +148,10 @@ counts as the run's work. A merge that conflicts is aborted and sent back,
 integrator's own commits, and green lands it all as one land, a builder's tip counting as one of the
 batch's three (**Committing**). **A red sweep is localised before anything lands**: reset the lane to
 before the merges — they are unlanded, so nothing is lost — sweep each tip alone over that, land the
-green and reject the red with the row it failed. Then the integrator builds what only it can.
+green and reject the red with the row it failed. Then the integrator builds, **what needs the harness
+before what a builder could take**: once the builders' work runs short, an integrator spending its run on
+harness-free work leaves every builder halted over units it holds and every harness row waiting on it —
+measured once as two builders stopping five minutes into their runs.
 
 ## Questions
 
