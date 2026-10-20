@@ -112,7 +112,9 @@ clock waiting on serial sweeps — and with two builders, most of what it proved
 
 **Every lane takes a unit before writing in it**, `reach.ps1 builders take <unit>`, and one lane holds a
 unit at a time, so two lanes never edit one document or one unit's code at once. A refused take is not a
-question: take the next unit. A run starts by continuing the units its lane already holds
+question: take the next unit. **A builder holds two at most** — one whose work is with the integrator and
+one it is writing — and a third take is refused, because one lane holding seven units once left two
+builders halted with nothing to take. A run starts by continuing the units its lane already holds
 (`builders held`), and **drops one** (`builders drop <unit>`) only when nothing in it is left that the
 lane can build *and* its work in it is on integration — dropped earlier, the next holder writes over a
 document whose last edit has not landed. A take is the lane's, not the run's, and crosses runs.
@@ -131,9 +133,11 @@ harness-only row standing in front of four rows a walkthrough needed, none of wh
 
 **A builder proves with `reach.ps1 all` green over its committed tree, then marks that tip ready**,
 `reach.ps1 builders ready`, **run inside the builder** — it marks the checkout's HEAD, and from anywhere
-else it marks the wrong one. **It never lands and never touches integration**: where the integrator
-would verify and land a batch, a builder proves and marks ready, and a half-done unit is committed to its
-branch and simply not marked. `land` refuses a builder outright.
+else it marks the wrong one — and then **goes straight on to its next piece of work**: a run never waits
+on its own tip, which once sat ten hours with the integrator while the builder that proved it idled. **It
+never lands and never touches integration**: where the integrator would verify and land a batch, a builder
+proves and marks ready, and a half-done unit is committed to its branch and simply not marked. `land`
+refuses a builder outright.
 
 **A builder starts by asking whether its last tip came back**, `reach.ps1 builders rejection`, and fixes
 that before anything else. A rejection names why — a tier the sweep reddened, a conflict — and marking
@@ -146,9 +150,11 @@ as `git merge --no-ff --no-edit refs/ready/<builder>`, that exact form, which is
 counts as the run's work. A merge that conflicts is aborted and sent back,
 `reach.ps1 builders reject <builder> -Reason <why>`. Then one sweep runs over everything merged and the
 integrator's own commits, and green lands it all as one land, a builder's tip counting as one of the
-batch's three (**Committing**). **A red sweep is localised before anything lands**: reset the lane to
-before the merges — they are unlanded, so nothing is lost — sweep each tip alone over that, land the
-green and reject the red with the row it failed. Then the integrator builds, **what needs the harness
+batch's three (**Committing**). **A red sweep is localised before anything lands, by the checks that
+failed and never by sweeping again**: reset the lane to before the merges — they are unlanded, so nothing
+is lost — run only what failed over each tip merged alone, reject each tip it reddens with the check and
+its line, and start the run again; the tips not rejected are still pending, so the next sweep takes them.
+Sweeping each tip alone cost one project two hours a candidate to learn what one check already knew. Then the integrator builds, **what needs the harness
 before what a builder could take**: once the builders' work runs short, an integrator spending its run on
 harness-free work leaves every builder halted over units it holds and every harness row waiting on it —
 measured once as two builders stopping five minutes into their runs.
@@ -257,6 +263,13 @@ implementation.
 
 **Prove the negative control.** Break the thing on purpose once and watch the test go red, then
 restore it. A guard whose failure path has never been observed is decoration.
+
+**A check that is red and then green run again alone is a defect in the check, and so is one that holds
+every run's wall clock**, and the lane holding its unit fixes either before new work. A sweep held red by a
+check that passes on a second try lands nothing while every tip in it waits: one project's ran eight times
+in a day over two such checks without landing. So the runner runs a red check once more, alone, before
+calling it red, reports one that turns green as flaky rather than passed, and keeps a record of which —
+and a single fixture costing more than half a tier is found and cut, not waited on.
 
 Mark what proves each claim with the project's evidence mark, so the gate can hold the document to the
 tests.

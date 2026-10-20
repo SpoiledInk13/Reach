@@ -88,6 +88,14 @@ switch ($Verb) {
             Write-Host ("REFUSED: no unit document {0}/{1}.md" -f $unitDir, $Target) -ForegroundColor Red; exit 1
         }
         $path = Join-Path $State "claims/$Target"
+        # A builder holds two units at most -- one whose work waits on the integrator and one it is
+        # writing: one lane holding seven once left two builders halted with nothing to take.
+        if ($me.Builder -gt 0 -and -not (Test-Path -LiteralPath $path)) {
+            $mine = @(Get-ChildItem -LiteralPath (Join-Path $State 'claims') -File | Where-Object { (Read-BuilderRecord $_.FullName).First -eq $me.Name })
+            if ($mine.Count -ge 2) {
+                Write-Host ("REFUSED: {0} holds {1} unit(s) already ({2}) -- drop one whose work is merged before taking another." -f $me.Name, $mine.Count, (($mine | ForEach-Object { $_.Name }) -join ', ')) -ForegroundColor Red; exit 1
+            }
+        }
         try {
             # CreateNew is the atomic part: of two lanes asking at once, exactly one creates the file.
             $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)

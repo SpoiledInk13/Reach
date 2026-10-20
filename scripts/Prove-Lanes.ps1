@@ -73,7 +73,7 @@ function New-Fixture {
             @{ id = 'B'; what = 'needs the harness'; run = 'exit 1'; builders = $false }
         )
         New-Item -ItemType Directory -Path (Join-Path $repo 'Docs/units') -Force | Out-Null
-        foreach ($unit in @('combat', 'vessel')) {
+        foreach ($unit in @('combat', 'vessel', 'hull')) {
             [System.IO.File]::WriteAllText((Join-Path $repo "Docs/units/$unit.md"), "# $unit`n", (New-Object System.Text.UTF8Encoding($false)))
         }
         [System.IO.File]::WriteAllText((Join-Path $repo '.gitignore'), "warmed.txt`n", (New-Object System.Text.UTF8Encoding($false)))
@@ -1085,6 +1085,17 @@ Test-Control 'a unit is taken by one lane, refused to another, and dropped only 
     if ((Invoke-Script $Builders @('take', 'combat', '-Root', $f.Two)).Code -ne 0) { return 'a dropped unit was not takeable' }
     $none = Invoke-Script $Builders @('take', 'nosuch', '-Root', $f.One)
     if ($none.Code -eq 0 -or $none.Output -notmatch 'no unit document') { return 'a unit with no document was taken' }
+    return $true
+}
+
+Test-Control 'a builder holds two units at most' {
+    $f = New-BuilderFixture
+    if ((Invoke-Script $Builders @('take', 'combat', '-Root', $f.One)).Code -ne 0) { return 'a free unit was not taken' }
+    if ((Invoke-Script $Builders @('take', 'vessel', '-Root', $f.One)).Code -ne 0) { return 'a builder holding one unit could not take a second' }
+    $third = Invoke-Script $Builders @('take', 'hull', '-Root', $f.One)
+    if ($third.Code -eq 0) { return 'a builder holding two units took a third' }
+    if ($third.Output -notmatch 'holds 2 unit') { return "refused for another reason: $($third.Output)" }
+    if ((Invoke-Script $Builders @('take', 'vessel', '-Root', $f.One)).Code -ne 0) { return 'a builder at the cap was refused a unit it already holds' }
     return $true
 }
 
