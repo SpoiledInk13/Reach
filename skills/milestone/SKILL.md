@@ -172,8 +172,11 @@ place a blocker goes** — never memory, never the report alone.
    that filed two blockers long since answered.
 2. **Read the walkthrough as written**, and the documents of what it needs, off disk. Never restate it
    smaller because part of it is hard; a sentence that cannot happen as written is a blocker.
-3. Check what it needs, and then every row its arrows name. A row it needs that is unproven on a unit
-   reading `unbuilt`, or one carrying an `Open:` line the entry depends on, means the entry cannot start.
+3. Check what it needs, and then every row its arrows name. A row it needs that the builder owes, unproven on
+   a unit reading `unbuilt`, or one carrying an `Open:` line the entry depends on, means the entry cannot start;
+   a row of this command's own never does, whatever its unit reads, its **follows** clause deciding instead —
+   a unit half logic and half presentation is otherwise unstartable here and unfinishable there, each waiting
+   on the other.
    **A proven row is not held by its unit's state**: it is as finished on a unit still reading `unbuilt`
    as on a built one, and stopping on the state once held a walkthrough behind a unit that was unbuilt
    only for rows the walkthrough never used, with every builder row it needed proven. Where the entry

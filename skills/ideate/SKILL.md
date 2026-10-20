@@ -359,10 +359,12 @@ verdict is a stalled walkthrough rather than a note.
 
 **Before you stop, say whether the milestone command can act.** It reaches the owner nowhere else: where
 presentation is a separate lane this command cannot start, a walkthrough that is ready waits exactly as
-long as it takes a person to notice it is. Each walkthrough in progress, and the one on deck, is read alike: it can be taken when no row it needs is
-unproven on a unit reading `unbuilt`, no `Open:` line stands under it, and every `Not working:` line
+long as it takes a person to notice it is. Each walkthrough in progress, and the one on deck, is read alike: it can be taken when no row it needs that
+the builder owes is unproven on a unit reading `unbuilt`, no `Open:` line stands under it, and every `Not working:` line
 carries a `→` line; it waits on **the owner** rather than on work when every one of those arrows names
-something built and proven. **The block is a row's, never a unit's**: a proven row is as finished on a
+something built and proven. **A row the milestone command owes itself never blocks it**, whatever its unit
+reads — blocking on one left a walkthrough unstartable and its unit unflippable, each waiting on the other — so
+whether it can start is its **follows** clause's. **The block is a row's, never a unit's**: a proven row is as finished on a
 unit still reading `unbuilt` as on a built one, and reading the state instead held a walkthrough whose
 every builder row was proven, behind a unit unbuilt only for rows the walkthrough never used. **The
 blocked case is deliberately unfiled, so no grep here will ever show it**: that command stops on a row
