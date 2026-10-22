@@ -174,7 +174,8 @@ switch ($Verb) {
     }
     'state' {
         $me = Get-ThisLane
-        Write-Output (Get-TipState -RepoRoot $RepoRoot -StateDir $State -IntegrationBranch $integration.Branch -Name $me.Name)
+        $integratorBranch = if ($me.Builder -gt 0) { (Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name $me.Integrator).Branch } else { '' }
+        Write-Output (Get-TipState -RepoRoot $RepoRoot -StateDir $State -IntegrationBranch $integration.Branch -Name $me.Name -IntegratorBranch $integratorBranch)
         exit 0
     }
 }

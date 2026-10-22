@@ -513,6 +513,13 @@ function Invoke-SelfTest {
     Assert ((Get-CueVerdict -Builder 1 -LiveBuilders 0 -Pending 1 -TipState 'pending') -eq 'waiting') 'a builder whose tip is with the integrator waits'
     Assert ((Get-CueVerdict -Builder 1 -LiveBuilders 0 -Pending 0 -TipState 'none') -eq 'halt') 'a builder with nothing ready halts'
     Assert ((Get-CueVerdict -Builder 1 -LiveBuilders 0 -Pending 0 -TipState 'rejected') -eq 'halt') 'a builder that ended its run over a rejection halts rather than looping on it'
+    Assert ((Get-CueVerdict -Builder 1 -LiveBuilders 0 -Pending 1 -TipState 'merged') -eq 'waiting') 'a builder whose tip is merged but not landed halts rather than waiting'
+    Assert ((Get-TipCue -Began 'pending' -Now 'pending') -eq 'wait') 'a builder whose tip is not merged yet does not wait'
+    Assert ((Get-TipCue -Began 'pending' -Now 'merged') -eq 'merged') 'a builder whose tip was merged waits for the land, held at its cap through the sweep'
+    Assert ((Get-TipCue -Began 'merged' -Now 'merged') -eq 'wait') 'a builder whose tip was already merged when its run ended starts again, looping on empty runs'
+    Assert ((Get-TipCue -Began 'merged' -Now 'none') -eq 'landed') 'a builder whose merged tip landed does not start again'
+    Assert ((Get-TipCue -Began 'merged' -Now 'rejected') -eq 'rejected') 'a builder whose merged tip was sent back does not start again to fix it'
+    Assert ((Get-TipCue -Began 'merged' -Now 'pending') -eq 'wait') 'a builder whose tip the integrator reset off starts again before it is sent back'
     $savedRun = @{}
     foreach ($n in @($script:RunVariables.Keys)) { $savedRun[$n] = [Environment]::GetEnvironmentVariable($n) }
     try {
@@ -728,15 +735,21 @@ function Wait-ForCue {
         when a stop was asked for while waiting, and `halt` when there is nothing to wait for.
 
         The integrator with a builder still running has nothing to do YET: it waits for a ready tip.
-        A builder whose tip is with the integrator has nothing to do until that tip lands or comes
-        back, and either is its cue -- a new run picks the next unit, or reads why and fixes it.
+        A builder whose tip is with the integrator has nothing to do until that tip is merged into the
+        integrator's lane, lands, or comes back (Get-TipCue), and each is its cue -- a new run drops what
+        it may and takes the next unit, or reads why and fixes it.
     #>
     param([int]$Run, [datetime]$Started)
     $stateDir = Get-BuilderStateDir -RepoRoot $RepoRoot
     $live = @(Get-LiveBuilders -Process $Process -RepoRoot $RepoRoot -Name $laneConfig.Integrator)
     $pending = @(Get-PendingTips -RepoRoot $RepoRoot -StateDir $stateDir -IntegrationBranch $integration.Branch)
     $tip = 'none'
-    if ($laneConfig.Builder -gt 0) { $tip = Get-TipState -RepoRoot $RepoRoot -StateDir $stateDir -IntegrationBranch $integration.Branch -Name $laneConfig.Name }
+    $integratorBranch = ''
+    if ($laneConfig.Builder -gt 0) {
+        $integratorBranch = (Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name $laneConfig.Integrator).Branch
+        $tip = Get-TipState -RepoRoot $RepoRoot -StateDir $stateDir -IntegrationBranch $integration.Branch -Name $laneConfig.Name -IntegratorBranch $integratorBranch
+    }
+    $began = $tip
 
     $cue = Get-CueVerdict -Builder $laneConfig.Builder -LiveBuilders $live.Count -Pending $pending.Count -TipState $tip
     if ($cue -eq 'halt') { return 'halt' }
@@ -747,7 +760,7 @@ function Wait-ForCue {
         }
         Write-Ledger ("    verdict: IDLE -- nothing of its own to build, but {0} still running, so it waits for a ready tip rather than halting." -f ($live -join ', '))
     } else {
-        Write-Ledger '    verdict: WAITING -- its ready tip is with the integrator, so it waits until that lands or comes back rather than halting.'
+        Write-Ledger '    verdict: WAITING -- its ready tip is with the integrator, so it waits until that is merged, lands or comes back rather than halting.'
     }
 
     while ($true) {
@@ -759,9 +772,12 @@ function Wait-ForCue {
             if ($pending.Count -gt 0) { Write-Ledger ("    ready: {0} -- a new run integrates it." -f (($pending | ForEach-Object { $_.Lane }) -join ', ')); return 'go' }
             if (@(Get-LiveBuilders -Process $Process -RepoRoot $RepoRoot -Name $laneConfig.Integrator).Count -eq 0) { return 'halt' }
         } else {
-            $tip = Get-TipState -RepoRoot $RepoRoot -StateDir $stateDir -IntegrationBranch $integration.Branch -Name $laneConfig.Name
-            if ($tip -eq 'none') { Write-Ledger '    its tip landed -- a new run takes the next unit.'; return 'go' }
-            if ($tip -eq 'rejected') { Write-Ledger '    its tip was sent back -- a new run reads why and fixes it.'; return 'go' }
+            $tip = Get-TipState -RepoRoot $RepoRoot -StateDir $stateDir -IntegrationBranch $integration.Branch -Name $laneConfig.Name -IntegratorBranch $integratorBranch
+            switch (Get-TipCue -Began $began -Now $tip) {
+                'landed' { Write-Ledger '    its tip landed -- a new run takes the next unit.'; return 'go' }
+                'rejected' { Write-Ledger '    its tip was sent back -- a new run reads why and fixes it.'; return 'go' }
+                'merged' { Write-Ledger '    its tip is merged into the integrator''s lane -- a new run drops what it may and takes the next unit.'; return 'go' }
+            }
         }
     }
 }

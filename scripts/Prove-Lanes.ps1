@@ -1111,6 +1111,13 @@ Test-Control 'ready marks only a builder''s clean tip, and a clean tip is pendin
     if ((Invoke-Script $Builders @('ready', '-Root', $f.One)).Code -ne 0) { return 'a clean builder tip was not marked' }
     $pending = Invoke-Script $Builders @('pending', '-Root', $f.Repo)
     if ($pending.Output -notmatch 'build-1') { return 'a ready tip was not pending' }
+    if ((Invoke-Script $Builders @('state', '-Root', $f.One)).Output.Trim() -ne 'pending') { return 'a ready tip the integrator has not merged did not read pending' }
+    # Merged into the integrator's lane and not landed: still pending to the integrator, merged to its builder.
+    $build = Get-GitValue -Path $f.Repo -Arguments @('rev-parse', 'refs/heads/build')
+    Invoke-Git -Path $f.Repo -Arguments @('update-ref', 'refs/heads/build', (Get-GitValue -Path $f.Repo -Arguments @('rev-parse', 'refs/ready/build-1'))) | Out-Null
+    if ((Invoke-Script $Builders @('state', '-Root', $f.One)).Output.Trim() -ne 'merged') { return 'a tip merged into the integrator''s lane did not read merged' }
+    if ((Invoke-Script $Builders @('pending', '-Root', $f.Repo)).Output -notmatch 'build-1') { return 'a merged tip left the integrator''s pending list' }
+    Invoke-Git -Path $f.Repo -Arguments @('update-ref', 'refs/heads/build', $build) | Out-Null
     # A tip already on integration has nothing left to merge.
     Invoke-Git -Path $f.Repo -Arguments @('update-ref', 'refs/ready/build-2', 'develop') | Out-Null
     $pending = Invoke-Script $Builders @('pending', '-Root', $f.Repo)

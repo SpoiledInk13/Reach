@@ -468,11 +468,15 @@ function Get-PendingTips {
 }
 
 function Get-TipState {
-    # One word for the supervisor's waits: none, pending or rejected.
-    param([string]$RepoRoot, [string]$StateDir, [string]$IntegrationBranch, [string]$Name)
+    # One word for the supervisor's waits: none (nothing ready, or it is on integration), pending (the
+    # integrator has it to merge), merged (in the integrator's lane and not yet landed, which is when its
+    # builder may drop the units that work was in) or rejected.
+    param([string]$RepoRoot, [string]$StateDir, [string]$IntegrationBranch, [string]$Name, [string]$IntegratorBranch)
     if ($null -ne (Get-RejectionOf -RepoRoot $RepoRoot -StateDir $StateDir -Name $Name)) { return 'rejected' }
     foreach ($tip in (Get-PendingTips -RepoRoot $RepoRoot -StateDir $StateDir -IntegrationBranch $IntegrationBranch)) {
-        if ($tip.Lane -eq $Name) { return 'pending' }
+        if ($tip.Lane -ne $Name) { continue }
+        if ($IntegratorBranch -and (Invoke-Git -Path $RepoRoot -Arguments @('merge-base', '--is-ancestor', $tip.Sha, $IntegratorBranch)).Code -eq 0) { return 'merged' }
+        return 'pending'
     }
     return 'none'
 }
@@ -485,7 +489,7 @@ function Get-CueVerdict {
           idle     the integrator has nothing of its own, but a builder is still running or a ready
                    tip is waiting: it waits for one rather than halting
           waiting  a builder whose ready tip is with the integrator: nothing to do until that tip
-                   lands or comes back
+                   is merged into the integrator's lane, lands, or comes back (Get-TipCue)
           halt     nothing to wait for -- the answer that was the only answer before builders
 
         A builder whose tip was ALREADY sent back when its run ended had its chance to fix it and did
@@ -496,8 +500,23 @@ function Get-CueVerdict {
         if ($LiveBuilders -gt 0 -or $Pending -gt 0) { return 'idle' }
         return 'halt'
     }
-    if ($TipState -eq 'pending') { return 'waiting' }
+    if ($TipState -eq 'pending' -or $TipState -eq 'merged') { return 'waiting' }
     return 'halt'
+}
+
+function Get-TipCue {
+    <#
+        What a waiting builder does on reading its tip's state now, given its state when the wait began:
+        `wait`, or the reason a new run starts. Merged into the integrator's lane is a cue, because the
+        builder may then drop the units that work was in and take the next -- waiting for the land instead
+        held one project's builders at their two-unit cap through whole sweeps. But only when the wait
+        began before the merge: a run that found nothing to take would otherwise start again at once.
+    #>
+    param([string]$Began, [string]$Now)
+    if ($Now -eq 'none') { return 'landed' }
+    if ($Now -eq 'rejected') { return 'rejected' }
+    if ($Now -eq 'merged' -and $Began -eq 'pending') { return 'merged' }
+    return 'wait'
 }
 
 function Get-LiveBuilders {

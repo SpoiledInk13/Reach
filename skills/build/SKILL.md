@@ -116,8 +116,12 @@ question: take the next unit. **A builder holds two at most** — one whose work
 one it is writing — and a third take is refused, because one lane holding seven units once left two
 builders halted with nothing to take. A run starts by continuing the units its lane already holds
 (`builders held`), and **drops one** (`builders drop <unit>`) only when nothing in it is left that the
-lane can build *and* its work in it is on integration — dropped earlier, the next holder writes over a
-document whose last edit has not landed. A take is the lane's, not the run's, and crosses runs.
+lane can build *and* its work in it is merged into the integrator's lane — dropped earlier, the next
+holder writes over a document whose last edit is still this lane's alone. A builder at its cap with
+nothing left to build stops, and its supervisor starts it again the moment that work is merged, never
+waiting for the land: waiting held two of one project's builders at their cap through whole sweeps
+while rows a walkthrough needed stood unclaimed for a day. A take is the lane's, not the run's, and
+crosses runs.
 **Continuing never outranks the walkthroughs' needs**: at every pick, not only a run's first, a row
 a walkthrough in progress or on deck needs that the lane can build comes before its own units' other work. Read which needed
 rows stand behind nothing unproven, and `builders held` for which lane holds each one's unit.

@@ -270,7 +270,7 @@ pwsh Scripts/reach.ps1 run build-1          # a builder: runs the build command 
 
 With builders, the integrator says `IDLE` rather than halting while a builder still runs, and a builder
 says `WAITING` while its ready tip is with the integrator; each starts its next run when its cue
-arrives.
+arrives — for a builder, its tip merged into the integrator's lane, landed, or sent back.
 
 Or from inside Claude Code: **`/reach:iterate`** checks nothing holds the lane, launches the supervisor
 in its own window, and follows it — relaying what each run lands and stopping it when you ask. That
