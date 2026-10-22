@@ -154,6 +154,11 @@ if ($lanes.Count -eq 0) {
             Add-Gap ("lane '{0}' names no command" -f $name) 'The supervisor has nothing to run in it.' 'add command'
         }
     }
+    if (-not $Process.PSObject.Properties.Match('disk').Count) {
+        Add-Gap 'nothing declares what a lane may delete' `
+            'Every lane is a whole checkout with its own caches and outputs, and nothing removes them, so the disk fills unseen until a write fails as a broken build.' `
+            'add disk { warnPercent, regenerable } -- or "disk": {} where nothing a lane writes rebuilds itself'
+    }
 }
 
 # ------------------------------------------------------------------------------------ the files

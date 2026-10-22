@@ -178,6 +178,14 @@ declares `"builders": {}` and each tier that needs the harness `"builders": fals
 **The integrator and the builders**). Where every tier runs anywhere, builders buy nothing that a second
 lane would not, and add a merge step: leave them out.
 
+**Every lane multiplies what the toolchain writes, so ask what rebuilds itself.** A lane is a whole
+checkout with its own caches and outputs, and nothing in git removes them: the disk fills unseen until a
+write fails as a broken build. Ask which directories a build, test run or editor writes that it would
+write again — a dependency or compile cache, build outputs — and declare them in `disk.regenerable`, a
+cache with `idleDays`, outputs with `keep`. Each must be one git ignores: `clean` refuses anything else as
+possibly source. Where nothing a lane writes rebuilds itself, `"disk": {}` says so, and `audit` stops
+asking.
+
 Then copy `templates/reach.ps1` from the plugin into the repository as `Scripts/reach.ps1` and commit
 it. The plugin's scripts live at a path carrying its version number, so it moves on every update and
 nothing may hard-code it; that file resolves the installed plugin at run time and is what the owner

@@ -1268,6 +1268,242 @@ Test-Control 'a builder waits while its tip is pending, runs again when it lands
     return $true
 }
 
+# -------------------------------------------------------------------------- removing and cleaning
+
+$CleanDisk = Join-Path $PSScriptRoot 'Clean-Disk.ps1'
+
+function Get-LanePath {
+    # The build lane's worktree, spelt as reach resolves it, so a command line naming it matches.
+    param([string]$Repo)
+    return [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $Repo) 'lanes/build'))
+}
+
+function Start-Holder {
+    # A process whose command line names $Path, as an editor or toolchain started on a project does.
+    param([string]$Path)
+    return Start-Helper -Command ("Start-Sleep -Seconds 120 # `"{0}`"" -f $Path)
+}
+
+function New-Aged {
+    # A directory with a file in it, last written $Days days ago.
+    param([string]$Path, [int]$Days)
+    New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $Path 'x.bin'), 'x')
+    (Get-Item -LiteralPath $Path).LastWriteTime = (Get-Date).AddDays(-$Days)
+}
+
+function New-DiskFixture {
+    # Checkouts that ignore cache/ and out/, a disk declaration, and the build lane seeded. The warning
+    # defaults to 0% so a control is never reddened by the free space of the machine running it.
+    param($Regenerable = @(@{ path = 'cache'; idleDays = 1 }), [double]$WarnPercent = 0)
+    $repo = New-Fixture
+    [System.IO.File]::WriteAllText((Join-Path $repo '.gitignore'), "cache/`nout/`n", (New-Object System.Text.UTF8Encoding($false)))
+    Set-ProcessField -Repo $repo -Name 'disk' -Value @{ warnPercent = $WarnPercent; regenerable = @($Regenerable) }
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'disk') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('branch', '-f', 'develop', 'working') | Out-Null
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    return $repo
+}
+
+Test-Control 'remove refuses a lane with uncommitted work, names it, and leaves it there' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Get-LanePath $repo
+    [System.IO.File]::WriteAllText((Join-Path $worktree 'draft.txt'), 'the only copy')
+    $remove = Invoke-Script $Lane @('remove', 'build', '-Root', $repo)
+    if ($remove.Code -eq 0) { return 'it was allowed' }
+    if ($remove.Output -notmatch 'draft\.txt') { return "the work was not named: $($remove.Output)" }
+    if (-not (Test-Path -LiteralPath (Join-Path $worktree 'draft.txt'))) { return 'the work is gone' }
+    return $true
+}
+
+Test-Control 'remove -Force saves tracked and untracked work to the stash, then removes the lane and keeps its branch' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Get-LanePath $repo
+    [System.IO.File]::WriteAllText((Join-Path $worktree 'draft.txt'), "the only copy`n")
+    [System.IO.File]::WriteAllText((Join-Path $worktree 'a.txt'), "edited`n")
+    $remove = Invoke-Script $Lane @('remove', 'build', '-Root', $repo, '-Force')
+    if ($remove.Code -ne 0) { return "remove -Force exited $($remove.Code): $($remove.Output)" }
+    if (Test-Path -LiteralPath $worktree) { return 'the lane is still there' }
+    $subject = Get-GitValue -Path $repo -Arguments @('stash', 'list', '-1', '--format=%gs')
+    if ($subject -notmatch 'lane build removed') { return "no stash names the lane: '$subject'" }
+    # An untracked file is saved in the stash's third parent, a tracked edit in the stash itself.
+    $draft = Get-GitValue -Path $repo -Arguments @('show', 'stash@{0}^3:draft.txt')
+    $edit = Get-GitValue -Path $repo -Arguments @('show', 'stash@{0}:a.txt')
+    if ($draft -ne 'the only copy') { return "the untracked file was not saved: '$draft'" }
+    if ($edit -ne 'edited') { return "the tracked edit was not saved: '$edit'" }
+    if (Get-WorktreeFor -Path $repo -Branch 'build') { return 'git still lists the lane as checked out' }
+    if (-not (Get-GitValue -Path $repo -Arguments @('rev-parse', '--verify', '--quiet', 'refs/heads/build'))) { return 'the branch went with it' }
+    return $true
+}
+
+Test-Control 'remove reports a branch''s unlanded commits, and refuses commits only a detached HEAD holds' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Get-LanePath $repo
+    [System.IO.File]::WriteAllText((Join-Path $worktree 'c.txt'), "c`n")
+    Invoke-Git -Path $worktree -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $worktree -Arguments @('commit', '-qm', 'unlanded') | Out-Null
+    $remove = Invoke-Script $Lane @('remove', 'build', '-Root', $repo)
+    if ($remove.Code -ne 0) { return "a clean lane on its branch was refused: $($remove.Output)" }
+    if ($remove.Output -notmatch '1 commit\(s\) not on') { return "the unlanded commit was not reported: $($remove.Output)" }
+
+    # The other half: a commit on a detached HEAD is on no branch, so the branch staying keeps nothing.
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    Invoke-Git -Path $worktree -Arguments @('checkout', '-q', '--detach') | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $worktree 'd.txt'), "d`n")
+    Invoke-Git -Path $worktree -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $worktree -Arguments @('commit', '-qm', 'detached') | Out-Null
+    $detached = Invoke-Script $Lane @('remove', 'build', '-Root', $repo, '-Force')
+    if ($detached.Code -eq 0) { return 'a commit no branch holds was deleted with the lane' }
+    if ($detached.Output -notmatch 'no branch, tag or remote') { return "refused for another reason: $($detached.Output)" }
+    return $true
+}
+
+Test-Control 'remove refuses a lane something holds' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Get-LanePath $repo
+    $held = Enter-LaneLock -LaneWorktree $worktree -Owner 'supervisor'
+    if (-not $held.Ok) { return 'could not take the lock' }
+    try {
+        $remove = Invoke-Script $Lane @('remove', 'build', '-Root', $repo, '-Force')
+        if ($remove.Code -eq 0) { return 'it was allowed' }
+        if ($remove.Output -notmatch 'held by supervisor') { return "refused for another reason: $($remove.Output)" }
+        if (-not (Test-Path -LiteralPath $worktree)) { return 'the lane was deleted anyway' }
+    } finally {
+        Exit-LaneLock -LaneWorktree $worktree
+    }
+    return $true
+}
+
+Test-Control 'remove refuses a lane a running process has open, and not for a sibling whose name starts the same' {
+    $repo = New-Fixture
+    Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+    $worktree = Get-LanePath $repo
+    $sibling = Start-Holder "$worktree-1"
+    $holder = $null
+    try {
+        $free = Invoke-Script $Lane @('remove', 'build', '-Root', $repo)
+        if ($free.Code -ne 0) { return "a process open on a sibling lane refused this one: $($free.Output)" }
+
+        Invoke-Script $Lane @('seed', 'build', '-Root', $repo) | Out-Null
+        $holder = Start-Holder $worktree
+        $open = Invoke-Script $Lane @('remove', 'build', '-Root', $repo, '-Force')
+        if ($open.Code -eq 0) { return 'a lane a process has open was deleted' }
+        if ($open.Output -notmatch ("pid {0}\b" -f $holder.Id)) { return "the holding process was not named: $($open.Output)" }
+        if (-not (Test-Path -LiteralPath $worktree)) { return 'the lane was deleted anyway' }
+    } finally {
+        foreach ($p in @($sibling, $holder)) { if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }
+    }
+    return $true
+}
+
+Test-Control 'clean deletes an idle cache and keeps one written to recently' {
+    $repo = New-DiskFixture
+    $worktree = Get-LanePath $repo
+    New-Aged (Join-Path $worktree 'cache') 3
+    New-Aged (Join-Path $repo 'cache') 0
+    $clean = Invoke-Script $CleanDisk @('-Root', $repo)
+    if ($clean.Code -ne 0) { return "clean exited $($clean.Code): $($clean.Output)" }
+    if (Test-Path -LiteralPath (Join-Path $worktree 'cache')) { return "the idle cache was kept: $($clean.Output)" }
+    if (-not (Test-Path -LiteralPath (Join-Path $repo 'cache'))) { return 'the fresh cache was deleted' }
+    return $true
+}
+
+Test-Control 'clean keeps the newest outputs and deletes the rest' {
+    $repo = New-DiskFixture -Regenerable @(@{ path = 'out/*'; keep = 2 })
+    foreach ($n in 1..3) { New-Aged (Join-Path $repo "out/$n") (10 - $n) }
+    $clean = Invoke-Script $CleanDisk @('-Root', $repo)
+    if ($clean.Code -ne 0) { return "clean exited $($clean.Code): $($clean.Output)" }
+    if (Test-Path -LiteralPath (Join-Path $repo 'out/1')) { return "the oldest output was kept: $($clean.Output)" }
+    foreach ($n in 2, 3) { if (-not (Test-Path -LiteralPath (Join-Path $repo "out/$n"))) { return "one of the newest two, out/$n, was deleted" } }
+    return $true
+}
+
+Test-Control 'clean refuses a declared path git does not ignore, or that holds a tracked file, and deletes neither' {
+    $repo = New-DiskFixture -Regenerable @(@{ path = 'notes'; idleDays = 0 })
+    New-Aged (Join-Path $repo 'notes') 3
+    $clean = Invoke-Script $CleanDisk @('-Root', $repo)
+    if ($clean.Code -eq 0) { return 'it reported success over an entry naming what may be source' }
+    if ($clean.Output -notmatch 'does not ignore') { return "refused for another reason: $($clean.Output)" }
+    if (-not (Test-Path -LiteralPath (Join-Path $repo 'notes/x.bin'))) { return 'the unignored directory was deleted' }
+
+    $forced = New-DiskFixture
+    New-Aged (Join-Path $forced 'cache') 3
+    Invoke-Git -Path $forced -Arguments @('add', '-f', 'cache/x.bin') | Out-Null
+    Invoke-Git -Path $forced -Arguments @('commit', '-qm', 'a file force-added under an ignored directory') | Out-Null
+    (Get-Item -LiteralPath (Join-Path $forced 'cache')).LastWriteTime = (Get-Date).AddDays(-3)
+    $tracked = Invoke-Script $CleanDisk @('-Root', $forced)
+    if ($tracked.Code -eq 0) { return 'it reported success over a cache holding a tracked file' }
+    if ($tracked.Output -notmatch 'tracks 1 file') { return "refused for another reason: $($tracked.Output)" }
+    if (-not (Test-Path -LiteralPath (Join-Path $forced 'cache/x.bin'))) { return 'the tracked file was deleted' }
+    return $true
+}
+
+Test-Control 'clean keeps what a running process has open and what a held lane holds, and deletes both once free' {
+    $repo = New-DiskFixture
+    $worktree = Get-LanePath $repo
+    New-Aged (Join-Path $worktree 'cache') 3
+    New-Aged (Join-Path $repo 'cache') 3
+    # An editor started on the primary has every cache under it open.
+    $holder = Start-Holder ([System.IO.Path]::GetFullPath($repo))
+    $held = Enter-LaneLock -LaneWorktree $worktree -Owner 'supervisor'
+    try {
+        if (-not $held.Ok) { return 'could not take the lock' }
+        $busy = Invoke-Script $CleanDisk @('-Root', $repo)
+        if (-not (Test-Path -LiteralPath (Join-Path $repo 'cache'))) { return 'a cache under an open project was deleted' }
+        if (-not (Test-Path -LiteralPath (Join-Path $worktree 'cache'))) { return 'a cache in a held lane was deleted' }
+        if ($busy.Output -notmatch 'open in') { return "the open project was not reported: $($busy.Output)" }
+        if ($busy.Output -notmatch 'held by supervisor') { return "the held lane was not reported: $($busy.Output)" }
+    } finally {
+        if ($holder) { Stop-Process -Id $holder.Id -Force -ErrorAction SilentlyContinue }
+        Exit-LaneLock -LaneWorktree $worktree
+    }
+    # The other half: guards that kept everything would have passed the lines above.
+    Start-Sleep -Milliseconds 500
+    $free = Invoke-Script $CleanDisk @('-Root', $repo)
+    if ((Test-Path -LiteralPath (Join-Path $repo 'cache')) -or (Test-Path -LiteralPath (Join-Path $worktree 'cache'))) { return "nothing was deleted once both were free: $($free.Output)" }
+    return $true
+}
+
+Test-Control 'clean -WhatIf deletes nothing' {
+    $repo = New-DiskFixture
+    New-Aged (Join-Path (Get-LanePath $repo) 'cache') 3
+    $clean = Invoke-Script $CleanDisk @('-Root', $repo, '-WhatIf')
+    if (-not (Test-Path -LiteralPath (Join-Path (Get-LanePath $repo) 'cache'))) { return 'it deleted under -WhatIf' }
+    if ($clean.Output -notmatch 'What if') { return "it did not say what it would delete: $($clean.Output)" }
+    return $true
+}
+
+Test-Control 'clean and lane status warn under the disk threshold, and stay quiet over it' {
+    $low = New-DiskFixture -WarnPercent 100
+    $clean = Invoke-Script $CleanDisk @('-Root', $low)
+    if ($clean.Code -eq 0 -or $clean.Output -notmatch 'WARNING') { return "clean did not warn under 100%: $($clean.Output)" }
+    $status = Invoke-Script $Lane @('status', '-Root', $low)
+    if ($status.Output -notmatch 'under the 100% warning') { return "status did not warn under 100%: $($status.Output)" }
+
+    $fine = New-DiskFixture -WarnPercent 0
+    $quiet = Invoke-Script $CleanDisk @('-Root', $fine)
+    if ($quiet.Code -ne 0 -or $quiet.Output -match 'WARNING') { return "clean warned at 0%: $($quiet.Output)" }
+    $calm = Invoke-Script $Lane @('status', '-Root', $fine)
+    if ($calm.Output -notmatch 'disk\s+\S+ [\d,.]+ GB free') { return "status did not report the disk: $($calm.Output)" }
+    if ($calm.Output -match 'warning') { return "status warned at 0%: $($calm.Output)" }
+    return $true
+}
+
+Test-Control 'audit names lanes with no disk declaration, and nothing once one is declared' {
+    $repo = New-Fixture
+    $audit = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $repo)
+    if ($audit.Output -notmatch 'nothing declares what a lane may delete') { return "it was not named: $($audit.Output)" }
+    Set-ProcessField -Repo $repo -Name 'disk' -Value @{}
+    $declared = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $repo)
+    if ($declared.Output -match 'nothing declares what a lane may delete') { return "an explicit empty declaration was still named: $($declared.Output)" }
+    return $true
+}
+
 # ---------------------------------------------------------------------------------------- done
 
 if (-not $Keep) {

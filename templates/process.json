@@ -33,6 +33,8 @@
     }
   ],
 
+  "disk": { "warnPercent": 15, "regenerable": [] },
+
   "tiers": [
     { "id": "A", "what": "pure logic", "run": "", "cost": "~2s" },
     { "id": "B", "what": "integration", "run": "", "requires": "", "cost": "~30s" },

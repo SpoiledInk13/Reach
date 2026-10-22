@@ -25,8 +25,11 @@
       Lane.ps1 sync -Primary       bring it into the primary checkout, which nothing else syncs
       Lane.ps1 claim build         hold the lane for the agent session running this
       Lane.ps1 release build       let it go again
-      Lane.ps1 status              the primary and every lane: branch, holder, dirt, ahead or behind
-      Lane.ps1 remove build        remove the worktree; the branch stays
+      Lane.ps1 status              the primary and every lane: branch, holder, dirt, ahead or behind,
+                                   and the free space where they sit
+      Lane.ps1 remove build        delete the worktree once nothing is running in it and nothing in
+                                   it is unsaved; the branch stays
+      Lane.ps1 remove build -Force save its uncommitted and untracked work to the stash, then delete
 
     `claim` is how a session started by hand takes the lane the supervisor takes for itself, so the
     two cannot both be in it and `run -Check` sees either. The lock names the session's agent process
@@ -268,7 +271,7 @@ function Invoke-Status {
         Write-Host ("  {0,-12} {1,-10} {2}" -f 'primary', $integration.Primary, ($notes -join ', ')) -ForegroundColor $colour
     }
 
-    if ($names.Count -eq 0) { Write-Host '  no lanes declared in process.json' -ForegroundColor DarkGray; return }
+    if ($names.Count -eq 0) { Write-Host '  no lanes declared in process.json' -ForegroundColor DarkGray }
 
     foreach ($name in $names) {
         $lane = Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name $name
@@ -277,6 +280,16 @@ function Invoke-Status {
         # here while it holds units and marks tips ready.
         foreach ($builder in (Get-BuilderLanes -Process $Process -RepoRoot $RepoRoot -Name $name)) {
             Write-LaneStatus -Lane $builder
+        }
+    }
+
+    # Every lane multiplies what the toolchain writes, and a full disk fails as a broken build rather
+    # than as a full disk -- so the volume is reported where the lanes are.
+    foreach ($space in (Get-TreeSpaces -Process $Process -RepoRoot $RepoRoot)) {
+        if ($space.Low) {
+            Write-Host ("  disk         {0} -- under the {1}% warning. Scripts/reach.ps1 clean, or lane remove what this machine no longer runs." -f (Format-Space $space), $space.Warn) -ForegroundColor Red
+        } else {
+            Write-Host ("  disk         {0}" -f (Format-Space $space)) -ForegroundColor DarkGray
         }
     }
 }
@@ -390,13 +403,97 @@ function Invoke-Release {
 # ---------------------------------------------------------------------------------------- remove
 
 function Invoke-Remove {
+    <#
+        Removing a lane is how a machine gives its disk back, and a lane is the one place work can exist
+        that nothing else holds: uncommitted edits, untracked files, commits on a detached HEAD, a tool
+        still writing into it. Each of those refuses here. -Force answers only the first two, and by
+        saving them to the stash -- which every worktree shares -- before anything is deleted, never by
+        discarding them: nothing mechanical can tell a superseded draft from the only copy of a day's
+        work, and only one of those is recoverable. Ignored files go with the tree, because ignored is
+        what a cache is.
+
+        The branch stays, so nothing committed is lost; how far it is from the integration branch and
+        from every remote is reported, so the owner knows what the branch is now the only copy of.
+    #>
     $lane = Get-Lane $Lane
-    $arguments = @('worktree', 'remove', $lane.Worktree)
-    if ($Force) { $arguments += '--force' }
-    $result = Invoke-Git -Path $RepoRoot -Arguments $arguments
-    foreach ($line in $result.Lines) { Write-Host "  $line" -ForegroundColor DarkGray }
-    if ($result.Code -ne 0) { Write-Host 'FAILED: -Force removes one with uncommitted changes.' -ForegroundColor Red; exit 1 }
-    Write-Host ("REMOVED: {0}. The branch '{1}' is untouched." -f $lane.Worktree, $lane.Branch) -ForegroundColor Green
+    if (-not (Test-Path -LiteralPath $lane.Worktree)) {
+        # A folder deleted by hand leaves git listing a worktree that is not there; prune forgets it.
+        Invoke-Git -Path $RepoRoot -Arguments @('worktree', 'prune') | Out-Null
+        Write-Host ("NOTHING THERE: lane '{0}' has no worktree at {1}; git's record of any missing worktree is pruned." -f $lane.Name, $lane.Worktree) -ForegroundColor Green
+        exit 0
+    }
+    if (Test-SamePath $lane.Worktree (Get-PrimaryRoot $RepoRoot)) {
+        Write-Host ("REFUSED: lane '{0}' resolves to the primary checkout." -f $lane.Name) -ForegroundColor Red
+        exit 2
+    }
+
+    $holder = Get-LaneHolder -LaneWorktree $lane.Worktree
+    if ($holder) {
+        Write-Host ("REFUSED: lane '{0}' is held by {1} (pid {2}) since {3}. Stop what is running in it first." -f $lane.Name, (Get-Field $holder 'owner' '?'), (Get-Field $holder 'pid' '?'), (Get-Field $holder 'since' '?')) -ForegroundColor Red
+        exit 2
+    }
+
+    $open = @(Find-ProcessesNaming -Path $lane.Worktree -Processes (Get-ProcessCommandLines))
+    if ($open.Count -gt 0) {
+        Write-Host ("REFUSED: lane '{0}' is open in {1} process(es). Deleting under one leaves it writing into a tree that is going." -f $lane.Name, $open.Count) -ForegroundColor Red
+        foreach ($process in $open) { Write-Host ("  pid {0}  {1}" -f $process.Id, $process.Name) -ForegroundColor DarkGray }
+        exit 2
+    }
+
+    # Commits reachable from nowhere but this worktree's HEAD -- a detached HEAD that was committed on --
+    # go with the tree, and the branch staying does not keep them.
+    $orphaned = Get-GitValue -Path $lane.Worktree -Arguments @('rev-list', '--count', 'HEAD', '--not', '--branches', '--remotes', '--tags')
+    if ($orphaned -and [int]$orphaned -gt 0) {
+        Write-Host ("REFUSED: lane '{0}' has {1} commit(s) on its HEAD that no branch, tag or remote holds. Branch them first: git -C `"{2}`" branch <name>" -f $lane.Name, $orphaned, $lane.Worktree) -ForegroundColor Red
+        exit 2
+    }
+
+    # A lock whose process is gone is reach's own file, not work, and must not be saved as if it were.
+    Exit-LaneLock -LaneWorktree $lane.Worktree
+
+    $dirty = Get-WorktreeDirt -Path $lane.Worktree
+    if ($dirty.Code -ne 0) { Write-Host ("FAILED: git could not read lane '{0}'s status, so whether it holds work is unknown." -f $lane.Name) -ForegroundColor Red; exit 1 }
+    if ($dirty.Lines.Count -gt 0) {
+        if (-not $Force) {
+            Write-Host ("REFUSED: lane '{0}' has {1} uncommitted or untracked file(s). Look at them; -Force saves them to the stash and then removes the lane." -f $lane.Name, $dirty.Lines.Count) -ForegroundColor Red
+            foreach ($line in ($dirty.Lines | Select-Object -First 20)) { Write-Host "  $line" -ForegroundColor DarkGray }
+            if ($dirty.Lines.Count -gt 20) { Write-Host ("  ... and {0} more" -f ($dirty.Lines.Count - 20)) -ForegroundColor DarkGray }
+            exit 2
+        }
+        $message = "reach: lane $($lane.Name) removed $((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))"
+        $stash = Invoke-Git -Path $lane.Worktree -Arguments @('stash', 'push', '--include-untracked', '-m', $message)
+        $saved = Get-GitValue -Path $RepoRoot -Arguments @('stash', 'list', '-1', '--format=%gs')
+        if ($stash.Code -ne 0 -or -not $saved -or -not $saved.EndsWith($message)) {
+            foreach ($line in $stash.Lines) { Write-Host "  $line" -ForegroundColor DarkGray }
+            Write-Host ("FAILED: lane '{0}'s work could not be saved to the stash, so nothing was removed." -f $lane.Name) -ForegroundColor Red
+            exit 1
+        }
+        $left = Get-WorktreeDirt -Path $lane.Worktree
+        if ($left.Lines.Count -gt 0) {
+            Write-Host ("FAILED: the stash left {0} file(s) behind in lane '{1}', so nothing was removed. The rest is saved as '{2}'." -f $left.Lines.Count, $lane.Name, $message) -ForegroundColor Red
+            exit 1
+        }
+        Write-Host ("SAVED: {0} file(s) to the stash as '{1}'. Recover with: git stash list, then git stash apply <that entry>." -f $dirty.Lines.Count, $message) -ForegroundColor Yellow
+    }
+
+    $branchRef = "refs/heads/$($lane.Branch)"
+    $unlanded = Get-GitValue -Path $RepoRoot -Arguments @('rev-list', '--count', "$($integration.Branch)..$branchRef")
+    $unpushed = Get-GitValue -Path $RepoRoot -Arguments @('rev-list', '--count', $branchRef, '--not', '--remotes')
+
+    if (-not (Remove-Tree -Path $lane.Worktree)) {
+        Write-Host ("FAILED: part of {0} could not be deleted -- something still has a file open in it. Close it and run remove again." -f $lane.Worktree) -ForegroundColor Red
+        exit 1
+    }
+    Invoke-Git -Path $RepoRoot -Arguments @('worktree', 'prune') | Out-Null
+    if (Get-WorktreeFor -Path $RepoRoot -Branch $lane.Branch) {
+        Write-Host ("FAILED: the folder is gone and git still lists '{0}' as checked out. Run: git worktree prune" -f $lane.Branch) -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host ("REMOVED: {0}. The branch '{1}' stays." -f $lane.Worktree, $lane.Branch) -ForegroundColor Green
+    if ($unlanded -and [int]$unlanded -gt 0) {
+        Write-Host ("  it carries {0} commit(s) not on '{1}'; {2} of them on no remote, so this disk is their only copy." -f $unlanded, $integration.Branch, $(if ($unpushed) { $unpushed } else { '?' })) -ForegroundColor Yellow
+    }
 }
 
 switch ($Verb) {

@@ -193,6 +193,8 @@ pwsh Scripts/reach.ps1 lane sync build     # bring the integration branch in
 pwsh Scripts/reach.ps1 lane sync -Primary  # and into your own checkout, which nothing else syncs
 pwsh Scripts/reach.ps1 land -Lane build -Message msg.txt -Verified <sha>
 pwsh Scripts/reach.ps1 publish              # push those refs again, after one was refused
+pwsh Scripts/reach.ps1 lane remove build   # delete a lane this machine no longer runs; its branch stays
+pwsh Scripts/reach.ps1 clean               # delete what the checkouts rebuild, and warn when the disk is low
 ```
 
 Every lane verb runs the same from your checkout or from inside any lane: lane paths resolve against
@@ -236,6 +238,24 @@ it published nothing. Set `integration.publish` to `false` to turn it off, or
 
 On a repository you do not own, set `integration.mode` to `push`: lanes still isolate the work, and
 landing stays with the reviewers.
+
+**Lanes cost disk, and nothing in git gives it back.** Each lane is a whole checkout with its own build
+cache and its own outputs, so lanes multiply whatever the toolchain writes. Measured on the project
+this was built in: one lane at 161 GB, 118 GB of it caches nobody would open again, found only when a
+write failed — which reads as a broken build, not a full disk. Two commands give it back:
+
+- `lane remove <lane>` deletes a lane's worktree and keeps its branch. It refuses while anything holds
+  the lane, while a running process has it open, and while it has commits only a detached HEAD holds.
+  Uncommitted and untracked work refuses too, and is listed; `-Force` saves it to the stash — which
+  every worktree shares — before deleting, so nothing but ignored files is ever lost. It reports how
+  many of the branch's commits are on no remote, because the branch is now their only copy.
+- `clean` deletes what the repository declares regenerable in `disk.regenerable`: a cache once nothing
+  has written to it for `idleDays`, outputs past the newest `keep`. It sweeps your checkout and every
+  lane, never a worktree reach did not make, and deletes nothing git does not ignore, nothing in a held
+  lane, and nothing a running process names on its command line — an editor started on a project has
+  every cache under it open. Then it reports each volume and warns below `disk.warnPercent`, as
+  `lane status` does too. `clean -WhatIf` deletes nothing; `clean -Install` schedules a daily run that
+  warns in a dialog.
 
 **Builders, when one harness is the bottleneck.** If your slow tier needs something only one checkout
 can hold — an editor, an emulator, a device — while most of your evidence needs none of it, the build
@@ -454,7 +474,7 @@ Your tiers are yours. The **contract** between them is not:
 
 ### `Prove-Gate.ps1` and `Prove-Lanes.ps1` — evidence none of it is decoration
 
-Eighty-three controls across two suites, run together:
+Ninety-six controls across two suites, run together:
 
 ```shell
 pwsh Scripts/reach.ps1 prove
@@ -463,10 +483,11 @@ pwsh Scripts/reach.ps1 prove
 **Twenty-four gate controls.** Each breaks one thing, requires the gate to go red **for that specific
 check**, restores it, and requires green again.
 
-**Fifty-nine lane, landing, supervisor and audit controls.** Each breaks one assumption landing depends
+**Seventy-two lane, landing, supervisor, audit and disk controls.** Each breaks one assumption landing depends
 on and requires the refusal to come from the guard it names — the integration branch being checked out,
 a tree nobody verified, a lane on the wrong branch, a supervisor driving a lane from inside itself, a
-second holder of the lock, a builder trying to land.
+second holder of the lock, a builder trying to land, a lane removed with unsaved work or a process open in
+it, a cache deleted that git does not ignore.
 Landing advances a shared ref from objects while other work may be arriving, so it is the most
 dangerous code here and gets the most controls.
 
@@ -493,6 +514,7 @@ One file at your repository root. Everything reads it.
 | `tiers` | ordered, cheapest first: `{ id, what, run, requires, proves, cost, human, builders }` — `builders: false` leaves a tier to the integrator |
 | `integration` | `{ branch, primary, mode, remote }` — where lanes land. `mode` is `objects` or `push` |
 | `lanes` | `[{ name, branch, worktree, command, warm, unattended, builders }]` — `warm` takes `{ run }` or `{ copy }`; `builders` takes `{ worktree, warm }`, the worktree a pattern with `{n}` (default: the lane's, plus `-<n>`) |
+| `disk` | `{ warnPercent, regenerable }` — the free space under which `clean` and `lane status` warn (default 15), and what `clean` may delete in every checkout: `[{ path, idleDays, keep }]`, `path` relative and wildcarded, e.g. `{ "path": "node_modules/.cache", "idleDays": 1 }` or `{ "path": "dist/*", "keep": 2 }`. `"disk": {}` says nothing a lane writes rebuilds itself |
 | `reach` | the plugin version this repository was set up against, so `audit` can measure the gap |
 
 ```json

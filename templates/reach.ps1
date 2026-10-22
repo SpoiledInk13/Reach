@@ -4,7 +4,8 @@
 
       pwsh Scripts/reach.ps1 gate            the blocking gate      0 clean, 1 blocking, 2 refused
       pwsh Scripts/reach.ps1 all             gate + every tier      0 pass, 1 fail, 3 something skipped
-      pwsh Scripts/reach.ps1 lane <verb>     seed | sync | status | remove
+      pwsh Scripts/reach.ps1 lane <verb>     seed | sync | claim | release | status | remove
+      pwsh Scripts/reach.ps1 clean           delete what the checkouts rebuild, and warn when the disk is low
       pwsh Scripts/reach.ps1 builders <verb> take | drop | held | ready | pending | reject | rejection | state
       pwsh Scripts/reach.ps1 land -Lane ...  land a lane onto the integration branch, then publish
       pwsh Scripts/reach.ps1 publish         push the refs that carry the process, after one failed
@@ -41,6 +42,7 @@ $verbs = @{
     'publish' = 'Publish.ps1'
     'run'   = 'Run-Lane.ps1'
     'audit' = 'Audit.ps1'
+    'clean' = 'Clean-Disk.ps1'
     'prove' = 'Prove-Gate.ps1'
 }
 

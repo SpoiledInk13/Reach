@@ -790,3 +790,162 @@ function Exit-LaneLock {
     $path = Get-LockPath $LaneWorktree
     if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue }
 }
+
+# ------------------------------------------------------------------------------------- the disk
+#
+# A lane is a whole checkout with its own build cache and its own outputs, so lanes multiply whatever
+# the toolchain writes, and nothing in git ever removes any of it. Measured on the project this was
+# built in: one lane at 161 GB, 118 GB of it caches nobody would open again, noticed only when a write
+# failed -- which reads as a broken build, not a full disk.
+
+function Get-ProcessTrees {
+    # Every checkout reach knows: the primary, each declared lane and each seeded builder that exists.
+    # A worktree reach did not make is not here, because it is somebody else's.
+    param($Process, [string]$RepoRoot)
+    $trees = New-Object System.Collections.Generic.List[object]
+    $trees.Add([pscustomobject]@{ Name = 'primary'; Path = (Get-PrimaryRoot $RepoRoot); Lane = $null }) | Out-Null
+    foreach ($name in (Get-LaneNames $Process)) {
+        $lane = Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name $name
+        $all = @($lane) + @(Get-BuilderLanes -Process $Process -RepoRoot $RepoRoot -Name $name)
+        foreach ($each in $all) {
+            if ($each -and (Test-Path -LiteralPath $each.Worktree)) {
+                $trees.Add([pscustomobject]@{ Name = $each.Name; Path = $each.Worktree; Lane = $each }) | Out-Null
+            }
+        }
+    }
+    return ,$trees.ToArray()
+}
+
+function Get-DiskWarnPercent {
+    param($Process)
+    return [double](Get-Field (Get-Field $Process 'disk' $null) 'warnPercent' 15)
+}
+
+function Get-DriveSpace {
+    # The free and total bytes of the volume holding $Path, or nothing when it cannot be read.
+    param([string]$Path)
+    if ((-not (Test-Path variable:IsWindows)) -or $IsWindows) {
+        try {
+            $drive = New-Object System.IO.DriveInfo([System.IO.Path]::GetPathRoot([System.IO.Path]::GetFullPath($Path)))
+            return [pscustomobject]@{ Name = $drive.Name.TrimEnd('\'); Free = [double]$drive.AvailableFreeSpace; Total = [double]$drive.TotalSize }
+        } catch { return $null }
+    }
+    # POSIX df: filesystem, 1024-blocks, used, available, capacity, mount point.
+    $lines = @(& df -Pk -- $Path 2>$null)
+    if ($lines.Count -lt 2) { return $null }
+    $fields = $lines[$lines.Count - 1] -split '\s+'
+    if ($fields.Count -lt 6) { return $null }
+    return [pscustomobject]@{ Name = $fields[$fields.Count - 1]; Free = [double]$fields[3] * 1024; Total = [double]$fields[1] * 1024 }
+}
+
+function Get-TreeSpaces {
+    # Each volume the checkouts sit on, once, with whether it is under the warning.
+    param($Process, [string]$RepoRoot)
+    $warn = Get-DiskWarnPercent $Process
+    $seen = @{}
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($tree in (Get-ProcessTrees -Process $Process -RepoRoot $RepoRoot)) {
+        $space = Get-DriveSpace $tree.Path
+        if (-not $space -or $space.Total -le 0 -or $seen.ContainsKey($space.Name)) { continue }
+        $seen[$space.Name] = $true
+        $percent = [math]::Round(100 * $space.Free / $space.Total, 1)
+        $out.Add([pscustomobject]@{ Name = $space.Name; Free = $space.Free; Total = $space.Total; Percent = $percent; Low = ($percent -lt $warn); Warn = $warn }) | Out-Null
+    }
+    return ,$out.ToArray()
+}
+
+function Format-Space {
+    param($Space)
+    return ("{0} {1:N1} GB free of {2:N1} GB ({3}%)" -f $Space.Name, ($Space.Free / 1GB), ($Space.Total / 1GB), $Space.Percent)
+}
+
+function Get-ProcessCommandLines {
+    <#
+        Every running process's id, name and command line, read once for a whole sweep.
+
+        Whether something has a directory open is answered from command lines -- an editor, a dev
+        server or a toolchain names the project it was started on -- because no portable API says
+        which process holds a file, and deleting a cache under the process writing it leaves a
+        half-written file the next run reads as a broken toolchain.
+    #>
+    $list = New-Object System.Collections.Generic.List[object]
+    if ((-not (Test-Path variable:IsWindows)) -or $IsWindows) {
+        foreach ($p in @(Get-CimInstance -ClassName Win32_Process -ErrorAction SilentlyContinue)) {
+            if (-not $p.CommandLine -or [int]$p.ProcessId -eq $PID) { continue }
+            $list.Add([pscustomobject]@{ Id = [int]$p.ProcessId; Name = [string]$p.Name; Command = [string]$p.CommandLine }) | Out-Null
+        }
+    } else {
+        foreach ($line in @(& ps -eo 'pid=,args=' 2>$null)) {
+            if ([string]$line -notmatch '^\s*(\d+)\s+(.+)$') { continue }
+            $id = [int]$Matches[1]
+            if ($id -eq $PID) { continue }
+            $command = $Matches[2]
+            $list.Add([pscustomobject]@{ Id = $id; Name = (Split-Path -Leaf (($command -split '\s+')[0])); Command = $command }) | Out-Null
+        }
+    }
+    return ,$list.ToArray()
+}
+
+function Find-ProcessesNaming {
+    <#
+        The processes whose command line names $Path or anything inside it, or names exactly one of
+        its ancestors up to and including $Within: an editor started on a project has every cache
+        under it open, and one started on a sibling project has none of them.
+
+        The boundary is the point. `lanes\build` must not match `lanes\build-1`, which is another lane,
+        and an ancestor matches only as itself -- `lanes` naming `lanes\build-1\x` is not `lanes` open.
+    #>
+    param([string]$Path, [string]$Within, $Processes)
+    $windows = (-not (Test-Path variable:IsWindows)) -or $IsWindows
+    $normalise = { param([string]$s) if ($windows) { return $s.Replace('/', '\').ToLowerInvariant() } return $s }
+    $separators = '\\/'
+    $target = (& $normalise ([System.IO.Path]::GetFullPath($Path))).TrimEnd('\', '/')
+    $patterns = New-Object System.Collections.Generic.List[string]
+    $patterns.Add([regex]::Escape($target) + "(?=$|[$separators`"'\s])") | Out-Null
+    if ($Within) {
+        $stop = (& $normalise ([System.IO.Path]::GetFullPath($Within))).TrimEnd('\', '/')
+        if ($target.StartsWith($stop + [System.IO.Path]::DirectorySeparatorChar) -or $target.StartsWith($stop + '/')) {
+            $current = Split-Path -Parent $target
+            while ($current -and $current.Length -ge $stop.Length) {
+                $patterns.Add([regex]::Escape($current) + "[$separators]?(?=$|[`"'\s])") | Out-Null
+                if ($current -eq $stop) { break }
+                $current = Split-Path -Parent $current
+            }
+        }
+    }
+    $found = New-Object System.Collections.Generic.List[object]
+    foreach ($process in @($Processes)) {
+        if (-not $process) { continue }
+        $command = & $normalise $process.Command
+        foreach ($pattern in $patterns) {
+            if ($command -match $pattern) { $found.Add($process) | Out-Null; break }
+        }
+    }
+    # Each item on its own: callers wrap this in @(), which a comma-wrapped array would nest.
+    return $found.ToArray()
+}
+
+function Remove-Tree {
+    <#
+        Deletes a directory tree and says whether it is gone.
+
+        Through `rd` on Windows, which is many times faster than Remove-Item over a build cache's
+        hundreds of thousands of files, behind the \\?\ prefix so a path past 260 characters is deleted
+        rather than silently skipped. Refuses anything fewer than two levels below a volume's root,
+        which no lane or cache ever is and which a path that resolved to nothing would be.
+    #>
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $full = [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
+    $root = [System.IO.Path]::GetPathRoot($full)
+    $below = $full.Substring($root.Length).Split(@('\', '/'), [System.StringSplitOptions]::RemoveEmptyEntries)
+    if ($below.Count -lt 2) { throw "refusing to delete '$full': it is too near the root of its volume to be a lane or a cache" }
+    if (-not (Test-Path -LiteralPath $full)) { return $true }
+    if ((-not (Test-Path variable:IsWindows)) -or $IsWindows) {
+        $long = if ($full.StartsWith('\\')) { $full } else { "\\?\$full" }
+        & cmd.exe /c "rd /s /q `"$long`"" 2>$null | Out-Null
+        if (Test-Path -LiteralPath $full) { Remove-Item -LiteralPath $full -Recurse -Force -ErrorAction SilentlyContinue }
+    } else {
+        & rm -rf -- $full 2>$null
+    }
+    return (-not (Test-Path -LiteralPath $full))
+}
