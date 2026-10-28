@@ -76,11 +76,20 @@ Write-Host "Measure-Gaps -- what no inbox reports" -ForegroundColor Cyan
 # Every cap is declared in process.json, so they are read from there rather than restated: a second
 # copy is the thing that goes stale while both look right.
 $rows = New-Object System.Collections.Generic.List[object]
+# A document can be named twice -- the human document always is, once under `human` with no cap and
+# again under `caps`, the only place the gate reads its cap -- so it is one row, at the tightest real
+# cap, and reads as unset only when nothing caps it.
 function Add-Doc {
     param([string]$Relative, [int]$Cap)
     if (-not $Relative) { return }
     $path = Join-Path $RepoRoot $Relative
     if (-not (Test-Path -LiteralPath $path)) { return }
+    $seen = @($rows.ToArray() | Where-Object { $_.Doc -eq $Relative })
+    if ($seen.Count -gt 0) {
+        $row = $seen[0]
+        if ($Cap -gt 0 -and ($row.Cap -le 0 -or $Cap -lt $row.Cap)) { $row.Cap = $Cap; $row.Free = $Cap - $row.Lines }
+        return
+    }
     $lines = Get-LineCount $path
     $rows.Add([pscustomobject]@{ Doc = $Relative; Lines = $lines; Cap = $Cap; Free = $Cap - $lines }) | Out-Null
 }
