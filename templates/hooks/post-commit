@@ -1,0 +1,20 @@
+#!/bin/sh
+# reach-overlay: post-commit
+#
+# Backs the overlay up after every commit, because git never holds it: Scripts/reach.ps1 backup
+# mirrors it into documents.backup and commits the mirror there. A commit cannot be refused from
+# here, so a failed backup is said and nothing else.
+#
+# Copied by /reach:adopt into the hooks directory with the folder below set to the overlay's.
+
+root='<you>'
+
+shell=$(command -v pwsh || command -v powershell || command -v powershell.exe)
+if [ -z "$shell" ]; then
+    echo "reach-overlay: no PowerShell on PATH, so the overlay was NOT backed up." >&2
+    exit 0
+fi
+
+"$shell" -NoProfile -ExecutionPolicy Bypass -File "$root/Scripts/reach.ps1" backup >/dev/null ||
+    echo "reach-overlay: the backup FAILED. Run '$root/Scripts/reach.ps1 backup' to see why; this disk is the documents' only copy until it passes." >&2
+exit 0

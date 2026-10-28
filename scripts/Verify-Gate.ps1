@@ -77,6 +77,17 @@ function Add-Failure {
     $script:Failures.Add(("[{0}] {1}" -f $script:CurrentCheck, $Message)) | Out-Null
 }
 
+$script:NotApplicable = New-Object System.Collections.Generic.List[string]
+
+function Set-NotApplicable {
+    # A check the declared setup gives nothing to measure says so, and returns. Returning quietly
+    # reads exactly like a check that measured something and found it clean -- which is how one
+    # overlay ran with an archive git had never seen and a staleness check its mode switched off,
+    # both reported clean. A not-applicable check never blocks; it is just never counted as a pass.
+    param([string]$Reason)
+    $script:NotApplicable.Add(("{0} -- {1}" -f $script:CurrentCheck, $Reason)) | Out-Null
+}
+
 # -------------------------------------------------------------------------------- finding checks
 
 function Get-ChecksIn {
@@ -162,6 +173,8 @@ foreach ($entry in $toRun) {
     & $entry.Run
 }
 
+foreach ($line in $script:NotApplicable) { Write-Host ("  N/A  {0}" -f $line) -ForegroundColor DarkYellow }
+
 if ($script:Failures.Count -gt 0) {
     Write-Host ""
     Write-Host ("BLOCKING: {0} failure(s)" -f $script:Failures.Count) -ForegroundColor Red
@@ -169,5 +182,9 @@ if ($script:Failures.Count -gt 0) {
     exit 1
 }
 
+if ($script:NotApplicable.Count -gt 0) {
+    Write-Host ("PASS -- {0} check(s) clean, {1} not applicable here" -f ($toRun.Count - $script:NotApplicable.Count), $script:NotApplicable.Count) -ForegroundColor Green
+    exit 0
+}
 Write-Host ("PASS -- {0} check(s) clean" -f $toRun.Count) -ForegroundColor Green
 exit 0

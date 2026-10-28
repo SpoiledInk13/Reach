@@ -12,6 +12,11 @@ on anyone else. It writes no production code and runs no tiers.
 
 Read `process.json` first: it names the spine, the unit documents, the caps, and the archive.
 
+**Where the commands run.** Every `Scripts/reach.ps1` here is relative to the process root, the folder
+holding `process.json`. In a personal overlay that is a folder inside the repository, so the command is
+`<folder>/Scripts/reach.ps1` from the repository root — never `Scripts/reach.ps1` there, which on a
+case-insensitive file system resolves into the team's own `scripts/`.
+
 ## The documents
 
 | Document | Holds |
@@ -136,6 +141,9 @@ pwsh Scripts/reach.ps1 lane sync -Primary
 The gate refuses while this checkout is behind, so a decision made from stale text cannot land. But
 that refusal comes at the end, after the conversation has already happened on the wrong text. This
 step is the one that saves the conversation; the gate only saves the branch.
+
+**A personal overlay has no integration branch and no lanes**, so there is nothing to sync and no lane
+to read: the team's branches are not lanes, and the inbox is the overlay's documents alone.
 
 Other commands hand back what they cannot do as an `**Open:**` line under the thing it blocks. So:
 
@@ -558,6 +566,15 @@ branch and only the remote is behind: run `publish`, not another land.
 The rules that do not vary: the gate is green on the tree as it will be committed, you read
 `git diff --cached` before committing, and the commit message goes through a file — a here-string
 breaks on quotes and turns words into pathspecs.
+
+**In a personal overlay nothing here is committed, and nothing lands.** `documents.committed` is false:
+the documents are one person's and the tree is the team's. A decision is landed when it is written, the
+gate is green over it, and `<folder>/Scripts/reach.ps1 backup -Message <file>` has committed it to the
+backup — one decision per backup, as one per land. **The backup is the only place the documents have a
+history**, so its log is the list of decisions, `git -C <backup> log -S` is the trail wherever this
+skill says git history is, and the land review reads that log from this command's last entry. Where a
+rule says *in the same commit*, the document goes in the backup and its test in the task branch's next
+commit.
 
 ## Tooling
 

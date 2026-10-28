@@ -1504,6 +1504,239 @@ Test-Control 'audit names lanes with no disk declaration, and nothing once one i
     return $true
 }
 
+# ------------------------------------------------------------------------------------ the overlay
+
+$Promote = Join-Path $PSScriptRoot 'Promote.ps1'
+$Backup = Join-Path $PSScriptRoot 'Backup.ps1'
+
+function New-Overlay {
+    # A team's repository with a personal overlay in it: the team's history on `main`, pushed to a
+    # bare remote, and `me/` holding the process -- excluded through .git/info/exclude, never
+    # committed -- with the work on the task branch `me/task`.
+    param([object[]]$Tiers = @(@{ id = 'A'; what = 'pure logic'; run = 'exit 0' }), [switch]$Hooks)
+    $root = Join-Path ([System.IO.Path]::GetTempPath()) ("reach-overlay-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $repo = Join-Path $root 'repo'
+    New-Item -ItemType Directory -Path $repo -Force | Out-Null
+    $Made.Add($root) | Out-Null
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+
+    Invoke-Git -Path $repo -Arguments @('init', '-q', '-b', 'main') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('config', 'user.email', 'f@example.invalid') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('config', 'user.name', 'Fixture') | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $repo 'team.txt'), "the team's`n", $utf8)
+    Invoke-Git -Path $repo -Arguments @('add', '-A') | Out-Null
+    Invoke-Git -Path $repo -Arguments @('commit', '-qm', 'team') | Out-Null
+    $bare = Add-Remote $repo
+    Invoke-Git -Path $repo -Arguments @('push', '-q', 'origin', 'main') | Out-Null
+
+    $overlay = Join-Path $repo 'me'
+    New-Item -ItemType Directory -Path (Join-Path $overlay 'Scripts') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $overlay 'Docs') -Force | Out-Null
+    $template = Read-TextUtf8 (Join-Path (Split-Path -Parent $PSScriptRoot) 'templates/reach.ps1')
+    [System.IO.File]::WriteAllText((Join-Path $overlay 'Scripts/reach.ps1'), $template, $utf8)
+    [System.IO.File]::WriteAllText((Join-Path $overlay 'Docs/ARCHITECTURE.md'), "# Spine`n`nMine.`n", $utf8)
+    $config = @{
+        project     = 'overlay'
+        spine       = @{ path = 'Docs/ARCHITECTURE.md'; cap = 20 }
+        documents   = @{ committed = $false; backup = '../../backup' }
+        integration = @{ mode = 'promote'; prefix = 'me/'; base = 'main'; remote = 'origin' }
+        lanes       = @()
+        tiers       = $Tiers
+    } | ConvertTo-Json -Depth 6
+    [System.IO.File]::WriteAllText((Join-Path $overlay 'process.json'), $config, $utf8)
+    Add-Content -LiteralPath (Join-Path $repo '.git/info/exclude') -Value '/me/'
+
+    Invoke-Git -Path $repo -Arguments @('checkout', '-q', '-b', 'me/task') | Out-Null
+
+    if ($Hooks) {
+        # $hookDir and never $hooks: names are case-insensitive, and that one is the -Hooks switch.
+        $hookDir = Join-Path $repo '.git/hooks'
+        foreach ($hook in @('pre-commit', 'pre-merge-commit', 'pre-push', 'post-commit')) {
+            $text = (Read-TextUtf8 (Join-Path (Split-Path -Parent $PSScriptRoot) "templates/hooks/$hook")) -replace "'<you>/'", "'me/'" -replace "'<you>'", "'me'"
+            [System.IO.File]::WriteAllText((Join-Path $hookDir $hook), $text.Replace("`r`n", "`n"), $utf8)
+            if ((Test-Path variable:IsWindows) -and -not $IsWindows) { & chmod +x (Join-Path $hookDir $hook) }
+        }
+    }
+    return [pscustomobject]@{ Repo = $repo; Overlay = $overlay; Bare = $bare; Root = $root }
+}
+
+function Add-TaskWork {
+    param($Overlay, [string]$File = 'work.txt')
+    [System.IO.File]::WriteAllText((Join-Path $Overlay.Repo $File), "work`n", (New-Object System.Text.UTF8Encoding($false)))
+    Invoke-Git -Path $Overlay.Repo -Arguments @('add', '--', $File) | Out-Null
+    return (Invoke-Git -Path $Overlay.Repo -Arguments @('commit', '-qm', 'task work'))
+}
+
+function Test-RemoteHas {
+    param([string]$Bare, [string]$Branch)
+    return (Invoke-Git -Path $Bare -Arguments @('show-ref', '--verify', '--quiet', "refs/heads/$Branch")).Code -eq 0
+}
+
+Test-Control 'overlay: a script with no -Root finds the one overlay, and only one with a shim' {
+    $o = New-Overlay
+    Push-Location -LiteralPath $o.Repo
+    try {
+        $found = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @()
+        if ($found.Output -match 'NOT ADOPTED') { return "the overlay was not found from the repository root: $($found.Output)" }
+        if ($found.Output -notmatch 'audit -- .*[\\/]me\s') { return "it audited somewhere else: $($found.Output)" }
+        Remove-Item -LiteralPath (Join-Path $o.Overlay 'Scripts/reach.ps1') -Force
+        $stray = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @()
+        if ($stray.Output -notmatch 'NOT ADOPTED') { return "a process.json with no shim beside it was read as a project: $($stray.Output)" }
+    } finally { Pop-Location }
+    return $true
+}
+
+Test-Control 'overlay: promote refuses outside promote mode, off a task branch, and over an uncommitted tree' {
+    $repo = New-Fixture
+    $objects = Invoke-Script $Promote @('-Root', $repo)
+    if ($objects.Code -ne 2 -or $objects.Output -notmatch "integration.mode is 'objects'") { return "objects mode was not refused: $($objects.Output)" }
+
+    $o = New-Overlay
+    Invoke-Git -Path $o.Repo -Arguments @('checkout', '-q', 'main') | Out-Null
+    $team = Invoke-Script $Promote @('-Root', $o.Overlay)
+    if ($team.Code -ne 2 -or $team.Output -notmatch 'not a task branch') { return "a team branch was not refused: $($team.Output)" }
+
+    Invoke-Git -Path $o.Repo -Arguments @('checkout', '-q', 'me/task') | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $o.Repo 'loose.txt'), 'loose')
+    $dirty = Invoke-Script $Promote @('-Root', $o.Overlay)
+    if ($dirty.Code -ne 2 -or $dirty.Output -notmatch 'uncommitted') { return "an uncommitted tree was not refused: $($dirty.Output)" }
+    if (Test-RemoteHas $o.Bare 'task') { return 'something was pushed anyway' }
+    return $true
+}
+
+Test-Control 'overlay: promote pushes nothing over a failed tier or a skipped one' {
+    $failed = New-Overlay -Tiers @(@{ id = 'A'; what = 'fails'; run = 'exit 1' })
+    Add-TaskWork $failed | Out-Null
+    $red = Invoke-Script $Promote @('-Root', $failed.Overlay)
+    if ($red.Code -ne 1 -or $red.Output -notmatch 'NOT PROMOTED: a tier failed') { return "a failed tier did not refuse: $($red.Output)" }
+    if (Test-RemoteHas $failed.Bare 'task') { return 'a failed commit was pushed' }
+    if (Test-Path -LiteralPath (Join-Path $failed.Repo '.git/reach-promoted')) { return 'a failed commit was recorded as promoted' }
+
+    $skipped = New-Overlay -Tiers @(@{ id = 'A'; what = 'cannot run here'; run = 'exit 0'; requires = 'exit 1' })
+    Add-TaskWork $skipped | Out-Null
+    $skip = Invoke-Script $Promote @('-Root', $skipped.Overlay)
+    if ($skip.Code -ne 1 -or $skip.Output -notmatch 'NOT PROMOTED: a tier was skipped') { return "a skipped tier did not refuse: $($skip.Output)" }
+    if (Test-RemoteHas $skipped.Bare 'task') { return 'a skipped commit was pushed' }
+    return $true
+}
+
+Test-Control 'overlay: promote pushes what passed to the name less the prefix, records it, and never forces' {
+    $o = New-Overlay
+    Add-TaskWork $o | Out-Null
+    $sha = Get-GitValue -Path $o.Repo -Arguments @('rev-parse', 'HEAD')
+    $first = Invoke-Script $Promote @('-Root', $o.Overlay)
+    if ($first.Code -ne 0) { return "a passing commit was not promoted: $($first.Output)" }
+    if ((Get-GitValue -Path $o.Bare -Arguments @('rev-parse', 'refs/heads/task')) -ne $sha) { return 'the remote task branch is not the verified commit' }
+    if (Test-RemoteHas $o.Bare 'me/task') { return 'the own branch was pushed' }
+    if ((Read-TextUtf8 (Join-Path $o.Repo '.git/reach-promoted')) -notmatch ("(?m)^{0} task$" -f $sha)) { return 'the promotion was not recorded' }
+
+    # A reviewer's commit arrives on the remote branch; promoting over it would discard it.
+    $other = Join-Path $o.Root 'reviewer'
+    Invoke-Git -Path $o.Root -Arguments @('clone', '-q', '-b', 'task', $o.Bare, $other) | Out-Null
+    Invoke-Git -Path $other -Arguments @('-c', 'user.email=r@example.invalid', '-c', 'user.name=R', 'commit', '-q', '--allow-empty', '-m', 'reviewer fixup') | Out-Null
+    Invoke-Git -Path $other -Arguments @('push', '-q', 'origin', 'task') | Out-Null
+    $theirs = Get-GitValue -Path $o.Bare -Arguments @('rev-parse', 'refs/heads/task')
+    if ($theirs -eq $sha) { return 'the reviewer commit never reached the remote, so the control reads nothing' }
+
+    Add-TaskWork $o 'more.txt' | Out-Null
+    $second = Invoke-Script $Promote @('-Root', $o.Overlay)
+    if ($second.Code -ne 1 -or $second.Output -notmatch 'Never force') { return "a moved remote branch was not refused: $($second.Output)" }
+    if ((Get-GitValue -Path $o.Bare -Arguments @('rev-parse', 'refs/heads/task')) -ne $theirs) { return "the reviewer's commit was overwritten" }
+    return $true
+}
+
+Test-Control 'overlay: the hooks refuse a team-branch commit and every push promote did not make' {
+    $o = New-Overlay -Hooks
+
+    Invoke-Git -Path $o.Repo -Arguments @('checkout', '-q', 'main') | Out-Null
+    $onTeam = Add-TaskWork $o 'team-work.txt'
+    if ($onTeam.Code -eq 0) { return 'a commit on a team branch was accepted' }
+    if (($onTeam.Lines -join "`n") -notmatch 'reach-overlay') { return "it was refused, but not by the hook: $($onTeam.Lines -join ' ')" }
+    Invoke-Git -Path $o.Repo -Arguments @('reset', '-q', '--hard') | Out-Null
+    Invoke-Git -Path $o.Repo -Arguments @('checkout', '-q', 'me/task') | Out-Null
+
+    $mine = Add-TaskWork $o
+    if ($mine.Code -ne 0) { return "a commit on the task branch was refused: $($mine.Lines -join ' ')" }
+
+    $unpromoted = Invoke-Git -Path $o.Repo -Arguments @('push', 'origin', 'me/task:task')
+    if ($unpromoted.Code -eq 0) { return 'an unpromoted commit was pushed' }
+    if (($unpromoted.Lines -join "`n") -notmatch 'no promotion passed') { return "refused, but not for being unpromoted: $($unpromoted.Lines -join ' ')" }
+
+    $own = Invoke-Git -Path $o.Repo -Arguments @('push', 'origin', 'me/task')
+    if ($own.Code -eq 0) { return 'the own branch was pushed' }
+    if (($own.Lines -join "`n") -notmatch 'Your own branches stay here') { return "refused, but not as an own branch: $($own.Lines -join ' ')" }
+
+    # And the positive half: the hook lets through exactly what promote recorded.
+    $promoted = Invoke-Script $Promote @('-Root', $o.Overlay)
+    if ($promoted.Code -ne 0) { return "the hook refused a promoted commit: $($promoted.Output)" }
+    return $true
+}
+
+Test-Control 'overlay: backup mirrors the overlay outside the repository and keeps what it deletes in history' {
+    $o = New-Overlay
+    $mirror = Join-Path $o.Root 'backup'
+    $first = Invoke-Script $Backup @('-Root', $o.Overlay)
+    if ($first.Code -ne 0) { return "the backup failed: $($first.Output)" }
+    if (-not (Test-Path -LiteralPath (Join-Path $mirror 'Docs/ARCHITECTURE.md'))) { return 'a document was not mirrored' }
+
+    Remove-Item -LiteralPath (Join-Path $o.Overlay 'Docs/ARCHITECTURE.md') -Force
+    $decision = New-Message $o.Repo 'the spine is retired'
+    $second = Invoke-Script $Backup @('-Message', $decision, '-Root', $o.Overlay)
+    if ($second.Code -ne 0) { return "the second backup failed: $($second.Output)" }
+    if (Test-Path -LiteralPath (Join-Path $mirror 'Docs/ARCHITECTURE.md')) { return 'a deleted document survived in the mirror' }
+    $trail = Invoke-Git -Path $mirror -Arguments @('log', '--format=%s', '--', 'Docs/ARCHITECTURE.md')
+    if (@($trail.Lines | Where-Object { $_ }).Count -lt 2) { return 'the history does not hold the deleted document' }
+    if ($trail.Lines[0] -ne 'the spine is retired') { return "the decision is not what the history says: $($trail.Lines[0])" }
+
+    Set-ProcessField -Repo $o.Overlay -Name 'documents' -Value @{ committed = $false; backup = '../backup-in-the-tree' }
+    $inside = Invoke-Script $Backup @('-Root', $o.Overlay)
+    if ($inside.Code -ne 2 -or $inside.Output -notmatch 'inside the repository') { return "a backup inside the repository was not refused: $($inside.Output)" }
+    return $true
+}
+
+Test-Control 'overlay: audit reads an empty lanes array as declared, and an absent one as a gap' {
+    $repo = New-Fixture
+    Set-ProcessField -Repo $repo -Name 'lanes' -Value @()
+    $declared = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $repo)
+    if ($declared.Output -match 'no lanes declared') { return "an explicit empty array was named: $($declared.Output)" }
+    $path = Join-Path $repo 'process.json'
+    $config = Read-TextUtf8 $path | ConvertFrom-Json
+    $config.PSObject.Properties.Remove('lanes')
+    [System.IO.File]::WriteAllText($path, ($config | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
+    $absent = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $repo)
+    if ($absent.Output -notmatch 'no lanes declared') { return "an absent field was not named: $($absent.Output)" }
+    return $true
+}
+
+Test-Control 'overlay: audit names missing hooks, backup and base, and nothing once they are there' {
+    $bare = New-Overlay
+    Set-ProcessField -Repo $bare.Overlay -Name 'documents' -Value @{ committed = $false }
+    Set-ProcessField -Repo $bare.Overlay -Name 'integration' -Value @{ mode = 'promote'; prefix = 'me/'; remote = 'origin' }
+    $gaps = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $bare.Overlay)
+    foreach ($expected in @('hooks are not installed', 'nothing backs them up', 'names no base')) {
+        if ($gaps.Output -notmatch $expected) { return "'$expected' was not named: $($gaps.Output)" }
+    }
+    if ($gaps.Output -match 'no archive declared') { return "an overlay was asked for an archive: $($gaps.Output)" }
+
+    $full = New-Overlay -Hooks
+    $none = Invoke-Script (Join-Path $PSScriptRoot 'Audit.ps1') @('-Root', $full.Overlay)
+    foreach ($unexpected in @('hooks are not installed', 'nothing backs them up', 'names no base', 'no lanes declared')) {
+        if ($none.Output -match $unexpected) { return "'$unexpected' was named on a complete overlay: $($none.Output)" }
+    }
+    return $true
+}
+
+Test-Control 'overlay: every tier is handed REACH_BASE from integration.base' {
+    $echo = if ((Test-Path variable:IsWindows) -and -not $IsWindows) { 'echo base=$REACH_BASE' } else { 'echo base=%REACH_BASE%' }
+    $o = New-Overlay -Tiers @(@{ id = 'A'; what = 'reads the base'; run = $echo; proves = 'base=main' })
+    $all = Invoke-Script $VerifyAll @('-Root', $o.Overlay, '-SkipGate')
+    if ($all.Code -ne 0) { return "the tier did not see REACH_BASE=main: $($all.Output)" }
+    Set-ProcessField -Repo $o.Overlay -Name 'integration' -Value @{ mode = 'promote'; prefix = 'me/'; base = 'elsewhere'; remote = 'origin' }
+    $moved = Invoke-Script $VerifyAll @('-Root', $o.Overlay, '-SkipGate')
+    if ($moved.Code -eq 0) { return 'the tier passed on a base it was not given, so the control reads nothing' }
+    return $true
+}
+
 # ---------------------------------------------------------------------------------------- done
 
 if (-not $Keep) {

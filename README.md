@@ -86,6 +86,7 @@ Honest answer, because the fit is uneven:
 |---|---|
 | **Good fit** | One owner, greenfield or actively growing, a backlog of fairly independent pieces, and enough agent throughput that you have stopped being able to verify everything by reading it |
 | **Partial fit** | A team repository. Take the gate and the tier contract; skip the document governance — pull requests and review already coordinate humans, and they do it better |
+| **Your own corner of one** | A team repository where you want the whole process over your own tasks. A [personal overlay](#a-personal-overlay-on-a-team-repository) runs it from a folder git never sees, and only code, tests and evidence marks reach the team |
 | **Bad fit** | A small utility, or a repository that is mostly maintenance. The roster has nothing to say and the ceremony costs more than it returns |
 
 It makes no assumptions about your language, your test framework, or your branching model.
@@ -409,7 +410,8 @@ Replacement is safe because nothing is lost. It is a distillation, not a rewrite
 
 1. **Read and measure** what exists — instructions, commands, docs, how the project is really built.
 2. **Decide how much applies.** On a repository you do not own, it replaces how the *agent* is
-   instructed and verified, and leaves the team's own workflow alone.
+   instructed and verified, and leaves the team's own workflow alone — or, for your own tasks only,
+   sets up a [personal overlay](#a-personal-overlay-on-a-team-repository) and skips steps 3 and 7.
 3. **Tag, then archive.** Every file being replaced is `git mv`'d into an archive directory, whole.
 4. **Classify every claim to a named destination — and show you the table before writing anything.**
    Platform gotchas become traps; behaviour rules become claims with evidence attached; build
@@ -428,25 +430,69 @@ The uncomfortable part is step 4. A document full of confident prose becomes a r
 have nothing proving them. That is not adoption going wrong — that was already true, and is most of
 the value.
 
+## A personal overlay on a team repository
+
+The governance layer assumes one owner who answers every question, which is why a team takes the
+universal layer alone. But one contributor can run **all** of it over **their own tasks**, because then
+the assumption holds exactly: the owner is the only person who ever reads these documents. Asked *the
+universal layer for the team, or a personal overlay for your own tasks?*, `/reach:adopt` sets up the
+second like this:
+
+- **One folder, `<you>/`, at the repository root, is the process root.** `process.json`, the documents
+  and the shim live there, kept out of git by `.git/info/exclude` — never `.gitignore`, which is the
+  team's. A root `CLAUDE.md` (or `CLAUDE.local.md`, where the team tracks one) imports
+  `<you>/CLAUDE.md`, which lists the team's instructions as references to read and never move.
+- **Every command is `pwsh <you>/Scripts/reach.ps1 <verb>`.** A plugin script run with no `-Root`
+  finds the overlay too: when the repository root holds no `process.json`, the one folder directly under
+  it holding both `process.json` and `Scripts/reach.ps1` is the root.
+- **Evidence is the team's tests**, read from outside the root: `"search": ["../tests"]`.
+- **Nothing reach writes is committed** — `"documents": { "committed": false, "backup": "<folder>" }`.
+  `backup` mirrors the folder there and commits the mirror, so a deleted document is still in its
+  history and `git -C <backup> log -S` is the why-trail. The `post-commit` hook runs it; ideate runs it
+  with the decision as the message.
+- **There are no lanes and no land** — `"lanes": []`, and `integration` is
+  `{ "mode": "promote", "prefix": "<you>/", "base": "origin/main" }`. Work is done on `<you>/<name>`,
+  where `<name>` is the branch the team's tracker made, and `promote` replaces land and publish:
+
+```shell
+pwsh <you>/Scripts/reach.ps1 promote   # every tier on this exact commit, then push it to <name>, never forced
+pwsh <you>/Scripts/reach.ps1 backup    # mirror the overlay, and commit the mirror
+```
+
+`promote` refuses a dirty tree, any tier that fails **or is skipped**, and a HEAD that moved while the
+tiers ran; it records the commit, then pushes it. The merge request is opened by hand, and merging stays
+the reviewers'.
+
+- **The hooks make that the only route.** `templates/hooks/` holds `pre-commit` and `pre-merge-commit`,
+  refusing a commit off `<you>/*`; `pre-push`, refusing any push of `<you>/*` and of a commit `promote`
+  did not record; and `post-commit`, the backup. `audit` names any that are missing.
+- **A tier reads `REACH_BASE`** — `integration.base`, or the integration branch when there is none — so
+  a linter on changed lines diffs against what CI diffs against without naming a branch.
+- **A check the setup gives nothing to measure says so.** With no committed documents the archive has
+  no history to compare, and with nothing advanced under the checkout nothing can be stale; the gate
+  prints those `N/A` rather than counting them clean.
+
 ## What you get
 
 ### `Verify-Gate.ps1` — the blocking gate
 
 A driver that **finds** its checks instead of listing them: one `.ps1` per check, defining one
 function named for the file, discovered by reading two directories — the nine that ship here, and
-your own. Adding a check never edits the driver.
+your own. Adding a check never edits the driver. A check the declared setup gives nothing to measure
+reports **N/A** and why, rather than passing in silence: a pass that measured nothing reads exactly like
+one that measured something.
 
 | Check | Fails when |
 |---|---|
 | `DocumentCaps` | a document outgrows its line cap, a cap was never set, or nothing was measured at all |
-| `ArchiveImmutable` | the archive is edited, renamed or pruned — in the working tree or in a commit this branch carries, and additions are fine |
+| `ArchiveImmutable` | the archive is edited, renamed or pruned — in the working tree or in a commit this branch carries, and additions are fine. N/A with no archive, or with documents git does not hold |
 | `ClaimsAreProven` | a unit is marked built with claims nothing proves; evidence names a claim no document makes; an `*(owed)*` mark sits where it should not; a built unit holds a question it does not owe |
 | `ContractIsDeclared` | a roster row has no unit document, a document's `**Contract:**` header is neither `none` nor `partial`, or prose asserts a unit's contract state that only its header may state |
 | `DocLinks` | a maintained document links to something that no longer exists |
 | `AdoptionCounts` | a recorded line count stops matching its file, so a stalled adoption stays visible |
 | `TriageLines` | a walkthrough's arrow line disagrees with the row it names — calling a built row owed, which parks a ready step, or naming an owed row without the mark, which sends the lane at work that is not there |
 | `WalkthroughReferences` | a document names a walkthrough by number or by position, both of which move when a confirmed entry is deleted, or by a sentence the list no longer states |
-| `PrimaryIsStale` | the primary checkout is behind the integration branch, so its documents are not the ones the next reader sees |
+| `PrimaryIsStale` | the primary checkout is behind the integration branch, so its documents are not the ones the next reader sees. N/A where the reviewers land |
 
 ```shell
 pwsh Scripts/reach.ps1 gate
@@ -470,24 +516,28 @@ Your tiers are yours. The **contract** between them is not:
   no tier reads, and when every path changed since the tree met the integration branch starts with one,
   the verdict says so instead of running the tiers; `-Plan` prints that decision and runs nothing. It is
   empty until you measure what your tiers read — a document a test parses is not unread, however
-  document-like it looks.
+  document-like it looks;
+- every tier runs from the process root with `REACH_BASE` set to what "changed" is measured from —
+  `integration.base`, or the integration branch — so a tier that diffs never names a branch itself.
 
 ### `Prove-Gate.ps1` and `Prove-Lanes.ps1` — evidence none of it is decoration
 
-Ninety-six controls across two suites, run together:
+A hundred and ten controls across two suites, run together:
 
 ```shell
 pwsh Scripts/reach.ps1 prove
 ```
 
-**Twenty-four gate controls.** Each breaks one thing, requires the gate to go red **for that specific
-check**, restores it, and requires green again.
+**Twenty-nine gate controls.** Twenty-five each break one thing, require the gate to go red **for that
+specific check**, restore it, and require green again. Four require a green to mean what it says: a check
+with nothing to measure says `N/A` rather than passing in silence, and evidence outside the root counts.
 
-**Seventy-two lane, landing, supervisor, audit and disk controls.** Each breaks one assumption landing depends
+**Eighty-one lane, landing, supervisor, audit, disk and overlay controls.** Each breaks one assumption landing depends
 on and requires the refusal to come from the guard it names — the integration branch being checked out,
 a tree nobody verified, a lane on the wrong branch, a supervisor driving a lane from inside itself, a
 second holder of the lock, a builder trying to land, a lane removed with unsaved work or a process open in
-it, a cache deleted that git does not ignore.
+it, a cache deleted that git does not ignore, a promotion over a skipped tier or a reviewer's commit, a push
+the overlay hooks should refuse.
 Landing advances a shared ref from objects while other work may be arriving, so it is the most
 dangerous code here and gets the most controls.
 
@@ -497,23 +547,25 @@ caused by the break rather than by something ambient.
 
 ## `process.json`
 
-One file at your repository root. Everything reads it.
+One file at the process root — your repository root, or an overlay's folder. Everything reads it, and
+every path in it is relative to it.
 
 | Field | Means |
 |---|---|
 | `spine` | `{ path, cap }` — the one architecture document and its line cap |
 | `roster` | `{ path, cap }` — the roster of units, when it is its own document rather than part of the spine. Keep it separate: a split costs a roster row, and a row competing with the architecture for a line means a full spine blocks every split |
 | `unit` | `{ noun, dir, cap }` — what you call a unit of the system, where its documents live, their cap |
-| `evidence` | `{ noun, mark, search, files, heading }` — what proves a claim, and how it is marked |
+| `evidence` | `{ noun, mark, search, files, heading }` — what proves a claim, and how it is marked. `search` may reach outside the root: an overlay reads the team's tests at `../tests` |
 | `caps` | any other document → its cap |
-| `archive` | the read-only directory replaced files move into |
+| `archive` | the read-only directory replaced files move into. An overlay replaces nothing and declares none |
+| `documents` | `{ committed, backup }` — `committed: false` says git never holds the documents, as in an overlay, and `backup` is the folder `backup` mirrors them into and commits |
 | `checks` | where your own gate checks live (default `Scripts/gate-checks`) |
 | `human` | `{ doc, noun, layer }` — the walkthrough document `/reach:milestone` reads, and the presentation layer it owns outright. Omit `layer` and it owns no code; omit the key entirely if nothing needs a person to judge it |
 | `adoption` | the adoption work list, while one exists |
 | `unmaintained` | directories no link check should read |
 | `tiers` | ordered, cheapest first: `{ id, what, run, requires, proves, cost, human, builders }` — `builders: false` leaves a tier to the integrator |
-| `integration` | `{ branch, primary, mode, remote }` — where lanes land. `mode` is `objects` or `push` |
-| `lanes` | `[{ name, branch, worktree, command, warm, unattended, builders }]` — `warm` takes `{ run }` or `{ copy }`; `builders` takes `{ worktree, warm }`, the worktree a pattern with `{n}` (default: the lane's, plus `-<n>`) |
+| `integration` | `{ branch, primary, mode, remote, base, prefix }` — where lanes land. `mode` is `objects`, `push`, or `promote` for an overlay, which has no `branch` and promotes `<prefix><name>` to `<name>`. `base` is what tiers diff against as `REACH_BASE` (default `branch`) |
+| `lanes` | `[{ name, branch, worktree, command, warm, unattended, builders }]` — `warm` takes `{ run }` or `{ copy }`; `builders` takes `{ worktree, warm }`, the worktree a pattern with `{n}` (default: the lane's, plus `-<n>`). `[]` says one checkout is the whole of it |
 | `disk` | `{ warnPercent, regenerable }` — the free space under which `clean` and `lane status` warn (default 15), and what `clean` may delete in every checkout: `[{ path, idleDays, keep }]`, `path` relative and wildcarded, e.g. `{ "path": "node_modules/.cache", "idleDays": 1 }` or `{ "path": "dist/*", "keep": 2 }`. `"disk": {}` says nothing a lane writes rebuilds itself |
 | `reach` | the plugin version this repository was set up against, so `audit` can measure the gap |
 
@@ -562,8 +614,8 @@ Two rules keep this from becoming the eight-thousand-line gate it replaced:
 Early, and honest about which parts have been through a fire.
 
 **Proven:** the gate and its nine checks, the tier contract, the lane and landing guards, the
-builder split, and the supervisor's decision about whether a run did anything — eighty-three
-controls, each watched to fail for its own named reason and pass again, by a script you can run.
+builder split, the supervisor's decision about whether a run did anything, and an overlay's promotion,
+hooks and backup — a hundred and ten controls, each watched to fail for its own named reason and pass again, by a script you can run.
 
 **Weathered on one project:** the commands, lanes, builders and the unattended supervisor drive one
 downstream project daily, and most recent fixes are seams it found — a lane verb that only worked from

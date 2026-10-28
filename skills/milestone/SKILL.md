@@ -86,6 +86,15 @@ even when the walkthrough needs them.
 A land also publishes. If it fails on the push rather than on the merge, the merge already happened:
 run `publish` to retry the push, not another land.
 
+**In a personal overlay** — `integration.mode` is `promote` — there is no lane and no land: work in
+the one checkout on the task branch, stop at a green `all`, and leave promotion to the owner, as the
+build command does.
+
+**Where the commands run.** Every `Scripts/reach.ps1` here is relative to the process root, the folder
+holding `process.json`. In a personal overlay that is a folder inside the repository, so the command is
+`<folder>/Scripts/reach.ps1` from the repository root — never `Scripts/reach.ps1` there, which on a
+case-insensitive file system resolves into the team's own `scripts/`.
+
 ## What it decides, and what it never does
 
 **It builds presentation, and sets the values that tune it.** Styles, layout, effects, lighting, token

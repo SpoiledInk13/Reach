@@ -26,7 +26,17 @@
 #>
 function Test-ArchiveImmutable {
     $archive = Get-Field $Process 'archive' $null
-    if (-not $archive) { return }
+    if (-not $archive) {
+        Set-NotApplicable 'process.json declares no archive'
+        return
+    }
+
+    # Both ranges below are git's, and git has never seen documents that are not committed: every
+    # diff is empty, which is a pass that measured nothing.
+    if (-not (Get-Documents $Process).Committed) {
+        Set-NotApplicable 'documents.committed is false, so git holds no history of the archive to compare'
+        return
+    }
 
     # No Test-Path guard on the archive directory. Git does not track directories, so pruning the
     # LAST file in the archive removes it -- and a guard that returned early when the directory was

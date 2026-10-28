@@ -1,0 +1,21 @@
+#!/bin/sh
+# reach-overlay: pre-commit
+#
+# Refuses a commit on any branch but your own. A commit on a team branch is one no promotion
+# verified, and the next push of that branch would carry it to reviewers.
+#
+# Copied by /reach:adopt into the hooks directory (`git rev-parse --git-path hooks`) as both
+# pre-commit and pre-merge-commit, with the prefix below set to integration.prefix. Untracked:
+# it lives in .git, which is this clone's.
+
+prefix='<you>/'
+
+# Detached HEAD is a rebase or a bisect in progress, never a branch anyone pushes as it stands.
+branch=$(git symbolic-ref --quiet --short HEAD) || exit 0
+
+case "$branch" in
+    "$prefix"?*) exit 0 ;;
+esac
+
+echo "reach-overlay: refusing to commit on '$branch'. Work on '${prefix}<name>'; promotion moves '<name>' to it." >&2
+exit 1

@@ -44,7 +44,7 @@ function Test-ClaimsAreProven {
                 $proven.Add($m.Groups[1].Value) | Out-Null
                 $marks.Add([pscustomobject]@{
                     Name  = $m.Groups[1].Value
-                    Where = $file.FullName.Substring($RepoRoot.Length + 1)
+                    Where = Get-RelativePath $RepoRoot $file.FullName
                 }) | Out-Null
             }
         }
@@ -59,7 +59,7 @@ function Test-ClaimsAreProven {
                 $proven.Add($file.BaseName) | Out-Null
                 $marks.Add([pscustomobject]@{
                     Name  = $file.BaseName
-                    Where = $file.FullName.Substring($RepoRoot.Length + 1)
+                    Where = Get-RelativePath $RepoRoot $file.FullName
                 }) | Out-Null
             }
         }

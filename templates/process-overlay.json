@@ -1,0 +1,24 @@
+{
+  "reach": "0.0.0",
+  "project": "<name>",
+
+  "spine": { "path": "Docs/ARCHITECTURE.md", "cap": 0 },
+  "roster": { "path": "Docs/roster.md", "cap": 0 },
+  "unit": { "noun": "task", "dir": "Docs/units", "cap": 0 },
+  "evidence": { "noun": "scenario", "mark": "// scenario:", "search": ["../<tests>"] },
+  "human": { "doc": "Docs/WALKTHROUGHS.md", "noun": "walkthrough", "layer": "../<views>" },
+
+  "checks": "Scripts/gate-checks",
+  "caps": { "Docs/WALKTHROUGHS.md": 0 },
+
+  "documents": { "committed": false, "backup": "<a folder outside the repository>" },
+
+  "integration": { "mode": "promote", "prefix": "<you>/", "base": "origin/<default>", "remote": "origin" },
+  "lanes": [],
+
+  "tiers": [
+    { "id": "A", "what": "what CI runs first", "run": "", "cost": "~10s" },
+    { "id": "B", "what": "the full suite, as CI runs it", "run": "", "requires": "", "cost": "~5min" },
+    { "id": "C", "what": "the owner's eyes", "human": true }
+  ]
+}

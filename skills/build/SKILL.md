@@ -25,6 +25,11 @@ here.
 Read `process.json` first: it names the unit documents, the evidence mark, the tiers and their
 commands.
 
+**Where the commands run.** Every `Scripts/reach.ps1` here is relative to the process root, the folder
+holding `process.json`. In a personal overlay that is a folder inside the repository, so the command is
+`<folder>/Scripts/reach.ps1` from the repository root — never `Scripts/reach.ps1` there, which on a
+case-insensitive file system resolves into the team's own `scripts/`.
+
 ## What it reads
 
 The unit documents, and the spine. Nothing else. **The `unbuilt` entries are the backlog** — there is
@@ -99,6 +104,12 @@ proved is not what would land. Sync, re-run, land again.
 
 A land also publishes. If it fails on the push rather than on the merge, the merge already happened:
 run `publish` to retry the push. Landing again would report nothing to land and read like a fault.
+
+**In a personal overlay** — `integration.mode` is `promote` — there are no lanes and no land. Work in
+the one checkout on the task branch, `<prefix><name>`, commit there, and stop at a green `all` with the
+commit named in the report. **Promotion is the owner's, never this command's**: it puts the work in
+front of the team's reviewers. The documents are never committed, so wherever a rule here says *the
+same commit*, the test goes in the task branch's commit and the document in the overlay as it stands.
 
 ## The integrator and the builders
 

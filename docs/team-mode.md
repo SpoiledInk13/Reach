@@ -26,6 +26,10 @@ shared branch**:
   workflow in one repository, which is the failure `/reach:adopt` exists to prevent. Set
   `integration.mode` to `push` and take the universal layer alone.
 
+One member of a reviewing team can still take the whole process over their own tasks, as a personal
+overlay (`README.md`): one owner again, in a folder git never sees, promoting verified commits into the
+team's review. That is not a team mode and needs nothing below.
+
 If this is built, that is the distinction the fit table should draw.
 
 ## Mechanics

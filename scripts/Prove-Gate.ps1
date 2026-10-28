@@ -34,6 +34,10 @@ $ScriptRoot = $PSScriptRoot
 $Gate = Join-Path $ScriptRoot 'Verify-Gate.ps1'
 $Fixture = Join-Path ([System.IO.Path]::GetTempPath()) ("reach-prove-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 
+# Beside the fixture rather than in it: evidence an overlay reads from the team's tree, at ../<tests>.
+$Outside = $Fixture + '-tests'
+$OutsideName = Split-Path -Leaf $Outside
+
 function Write-File {
     param([string]$Relative, [string]$Content)
     $path = Join-Path $Fixture $Relative
@@ -48,8 +52,26 @@ function Write-File {
     [System.IO.File]::WriteAllText($path, $Content, (New-Object System.Text.UTF8Encoding($false)))
 }
 
+function Set-Config {
+    # One more top-level field in the fixture's process.json, by text, so the rest stays as written.
+    param([string]$Field)
+    $path = Join-Path $Fixture 'process.json'
+    Write-File 'process.json' ((Read-TextUtf8 $path) -replace '"checks":', ($Field + "`n  " + '"checks":'))
+}
+
+function Move-EvidenceOutside {
+    # The fixture's one test file, moved out of the root and found through ../, which is how an overlay
+    # reads the team's tests without a junction.
+    param([string]$Content = "// scenario: widget-spins`nvoid Test() { }`n")
+    New-Item -ItemType Directory -Path $Outside -Force | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $Outside 'WidgetTests.cs'), $Content, (New-Object System.Text.UTF8Encoding($false)))
+    Remove-Item -LiteralPath (Join-Path $Fixture 'Tests') -Recurse -Force
+    Write-File 'process.json' ((Read-TextUtf8 (Join-Path $Fixture 'process.json')) -replace '"search": \["Tests"\]', ('"search": ["../' + $OutsideName + '"]'))
+}
+
 function New-Fixture {
     if (Test-Path -LiteralPath $Fixture) { Remove-Item -LiteralPath $Fixture -Recurse -Force }
+    if (Test-Path -LiteralPath $Outside) { Remove-Item -LiteralPath $Outside -Recurse -Force }
     New-Item -ItemType Directory -Path $Fixture -Force | Out-Null
 
     Write-File 'process.json' @'
@@ -217,6 +239,10 @@ $controls = @(
     @{ Check = 'ClaimsAreProven'; What = 'a built unit holds a question it does not owe'
        Break = { Add-Content -LiteralPath (Join-Path $Fixture 'Docs/systems/widget.md') -Value '  **Open:** how fast?' } }
 
+    @{ Check = 'ClaimsAreProven'; What = 'evidence outside the root names a claim no document makes, and is named from the root'
+       Says  = '\.\./reach-prove-[0-9a-f]+-tests/WidgetTests\.cs'
+       Break = { Move-EvidenceOutside "// scenario: widget-spins`n// scenario: widget-wobbles`nvoid Test() { }`n" } }
+
     @{ Check = 'TriageLines'; What = 'a triage line still calls a built row owed'
        Break = { # Read-TextUtf8, not Get-Content: 5.1 decodes this un-BOMed UTF-8 file as CP1252, and
                  # round-tripping it through a control mangles the arrow the check keys on. The first
@@ -339,15 +365,69 @@ foreach ($control in $controls) {
     Write-Host ("  proven      {0}" -f $name) -ForegroundColor Green
 }
 
-if (-not $Keep -and (Test-Path -LiteralPath $Fixture)) {
-    Remove-Item -LiteralPath $Fixture -Recurse -Force -ErrorAction SilentlyContinue
+# ------------------------------------------------------------------- what a green has to mean
+
+# Two more kinds of control, neither of which a red can prove. A check the setup gives nothing to
+# measure must SAY so rather than pass -- and must not say so on the fixture, where it measures
+# something, or the N/A is noise. And evidence outside the root must count, or an overlay's every
+# built unit reads unproven.
+$greens = @(
+    @{ Check = 'ArchiveImmutable'; What = 'is not applicable where the documents are not committed'
+       NotApplicable = $true
+       Set = { Set-Config '"documents": { "committed": false },' } }
+
+    @{ Check = 'ArchiveImmutable'; What = 'is not applicable where no archive is declared'
+       NotApplicable = $true
+       Set = { Write-File 'process.json' ((Read-TextUtf8 (Join-Path $Fixture 'process.json')) -replace '"archive":\s*"Reference",', '') } }
+
+    @{ Check = 'PrimaryIsStale'; What = 'is not applicable where the reviewers land'
+       NotApplicable = $true
+       Set = { Set-Config '"integration": { "mode": "push" },' } }
+
+    @{ Check = 'ClaimsAreProven'; What = 'counts evidence found outside the root through ../'
+       NotApplicable = $false
+       Set = { Move-EvidenceOutside } }
+)
+
+foreach ($green in $greens) {
+    $name = "{0}: {1}" -f $green.Check, $green.What
+    $said = "N/A\s+" + [regex]::Escape($green.Check) + " -- "
+
+    New-Fixture
+    $before = Invoke-Gate
+    if ($before.Output -match $said) {
+        $failures.Add("$name -- the fixture already reports it not applicable, so this reads nothing.") | Out-Null
+        Write-Host ("  NOISE       {0}" -f $name) -ForegroundColor Red
+        continue
+    }
+
+    & $green.Set
+    $after = Invoke-Gate
+    if ($after.Code -ne 0) {
+        $failures.Add("$name -- the gate went red: $($after.Output)") | Out-Null
+        Write-Host ("  RED         {0}" -f $name) -ForegroundColor Red
+        continue
+    }
+    if ($green.NotApplicable -and ($after.Output -notmatch $said -or $after.Output -notmatch 'not applicable here')) {
+        $failures.Add("$name -- it passed in silence, which reads exactly like a check that measured something.") | Out-Null
+        Write-Host ("  SILENT      {0}" -f $name) -ForegroundColor Red
+        continue
+    }
+    Write-Host ("  proven      {0}" -f $name) -ForegroundColor Green
 }
 
+foreach ($path in @($Fixture, $Outside)) {
+    if (-not $Keep -and (Test-Path -LiteralPath $path)) {
+        Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+$total = $controls.Count + $greens.Count
 Write-Host ""
 if ($failures.Count -gt 0) {
-    Write-Host ("FAIL -- {0} of {1} control(s) did not behave" -f $failures.Count, $controls.Count) -ForegroundColor Red
+    Write-Host ("FAIL -- {0} of {1} control(s) did not behave" -f $failures.Count, $total) -ForegroundColor Red
     foreach ($failure in $failures) { Write-Host ("  {0}" -f $failure) -ForegroundColor Red }
     exit 1
 }
-Write-Host ("PASS -- all {0} control(s) went red for the right check and green again" -f $controls.Count) -ForegroundColor Green
+Write-Host ("PASS -- all {0} control(s): {1} went red for the right check and green again, {2} green for the right reason" -f $total, $controls.Count, $greens.Count) -ForegroundColor Green
 exit 0

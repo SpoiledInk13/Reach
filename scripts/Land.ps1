@@ -93,6 +93,13 @@ if ($asLane -and $asLane.Builder -gt 0) {
     exit 2
 }
 
+# A promoting repository has no land: what reaches the team is a SHA every tier passed on, pushed to the
+# branch reviewers read, and merging it is theirs.
+if ($integration.Mode -eq 'promote') {
+    Write-Host "REFUSED: integration.mode is 'promote', so nothing here lands. Run Scripts/reach.ps1 promote from the task branch: it runs every tier on this exact commit and pushes it for review." -ForegroundColor Red
+    exit 2
+}
+
 # Landing the integration branch into itself is not a merge, it is a loop. Worth naming, because
 # `-Branch develop` is an easy thing to type while thinking about publishing.
 if ($tipRef -eq $integration.Branch) {
@@ -116,7 +123,7 @@ if ($integration.Mode -eq 'push') {
 # ------------------------------------------------------------------------------------ the guards
 
 if ($integration.Mode -ne 'objects') {
-    Write-Host ("REFUSED: integration.mode '{0}' is not one this understands ('objects' or 'push')." -f $integration.Mode) -ForegroundColor Red
+    Write-Host ("REFUSED: integration.mode '{0}' is not one this understands ('objects', 'push' or 'promote')." -f $integration.Mode) -ForegroundColor Red
     exit 2
 }
 

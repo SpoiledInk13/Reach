@@ -79,13 +79,39 @@ function Get-PowerShellArgs {
 }
 
 function Resolve-RepoRoot {
+    <#
+        The process root: the folder holding process.json, which every path in it is relative to.
+
+        With no -Root that is the git toplevel -- unless the toplevel holds no process.json and exactly
+        one folder directly under it holds both process.json and Scripts/reach.ps1. That folder is a
+        personal overlay on a repository somebody else owns, and a script called straight from the
+        plugin used to answer "NOT ADOPTED" there until -Root was passed by hand. The shim is part of
+        the test because an overlay always has one, and it keeps a stray process.json -- a template, a
+        fixture -- from being read as a project.
+    #>
     param([string]$Root)
     if (-not $Root -or $Root.Trim().Length -eq 0) {
         $Root = (& git rev-parse --show-toplevel 2>$null)
         if ($LASTEXITCODE -ne 0 -or -not $Root) { return $null }
+        if (-not (Test-Path -LiteralPath (Join-Path $Root 'process.json'))) {
+            $overlays = @(Get-ChildItem -LiteralPath $Root -Directory -Force -ErrorAction SilentlyContinue | Where-Object {
+                (Test-Path -LiteralPath (Join-Path $_.FullName 'process.json')) -and
+                (Test-Path -LiteralPath (Join-Path $_.FullName 'Scripts/reach.ps1'))
+            })
+            if ($overlays.Count -eq 1) { $Root = $overlays[0].FullName }
+        }
     }
     if (-not (Test-Path -LiteralPath $Root)) { return $null }
     return (Resolve-Path -LiteralPath $Root).Path
+}
+
+function Get-RelativePath {
+    # A path as the process root sees it. Evidence may live outside the root -- an overlay's tests are
+    # the team's, at `../<tests>` -- and a Substring of the root's length turns those into nonsense.
+    param([string]$Base, [string]$Path)
+    $from = New-Object System.Uri (($Base.TrimEnd('\', '/')) + [System.IO.Path]::DirectorySeparatorChar)
+    $to = New-Object System.Uri $Path
+    return [System.Uri]::UnescapeDataString($from.MakeRelativeUri($to).ToString())
 }
 
 function Read-ProcessConfig {
@@ -532,17 +558,42 @@ function Get-LiveBuilders {
 function Get-Integration {
     param($Process)
     $integration = Get-Field $Process 'integration'
+    $mode = Get-Field $integration 'mode' 'objects'
+
+    # In promote mode nothing reach advances is shared, so there is no integration branch to default:
+    # one that is absent is absent, rather than a `develop` nobody made.
+    $branch = Get-Field $integration 'branch' $(if ($mode -eq 'promote') { '' } else { 'develop' })
     return [pscustomobject]@{
-        Branch  = Get-Field $integration 'branch'  'develop'
+        Branch  = $branch
         Primary = Get-Field $integration 'primary' 'working'
-        Mode    = Get-Field $integration 'mode'    'objects'
+        Mode    = $mode
         Remote  = Get-Field $integration 'remote'  'origin'
+
+        # What "changed" is measured from: the merge base with this. The integration branch unless a
+        # project says otherwise -- an overlay says the team's default branch, because that is what
+        # its CI diffs against. Tiers read it as REACH_BASE.
+        Base    = Get-Field $integration 'base' $branch
+
+        # Promote mode: a task branch is `<prefix><name>`, and it promotes to `<name>`.
+        Prefix  = Get-Field $integration 'prefix' ''
 
         # Publishing is on unless a project turns it off, because the alternative default is a
         # repository that looks landed from the one disk that holds it. `publishAll` is off because a
         # branch carrying no part of the process may be somebody's half-finished experiment.
         Publish    = [bool](Get-Field $integration 'publish'    $true)
         PublishAll = [bool](Get-Field $integration 'publishAll' $false)
+    }
+}
+
+function Get-Documents {
+    # Whether git holds the documents. An overlay's never reach the team's tree, so nothing that reads
+    # their history -- the archive's immutability, `git log -S`, the list of lands -- has anything to
+    # read, and its backup is their only other copy.
+    param($Process)
+    $documents = Get-Field $Process 'documents'
+    return [pscustomobject]@{
+        Committed = [bool](Get-Field $documents 'committed' $true)
+        Backup    = [string](Get-Field $documents 'backup' '')
     }
 }
 

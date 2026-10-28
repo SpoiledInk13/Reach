@@ -241,6 +241,14 @@ function Invoke-SyncPrimary {
 # ---------------------------------------------------------------------------------------- status
 
 function Invoke-Status {
+    # An overlay has no integration branch and no primary of reach's: its own branches promote into the
+    # team's, so the only thing worth a row here is the disk.
+    if ($integration.Mode -eq 'promote') {
+        Write-Host ("promote: '{0}<name>' promotes to '<name>' on {1}. No integration branch, no primary, no lanes." -f $integration.Prefix, $integration.Remote) -ForegroundColor Cyan
+        Write-DiskStatus
+        return
+    }
+
     Write-Host ("integration: {0}  (mode {1})" -f $integration.Branch, $integration.Mode) -ForegroundColor Cyan
 
     $checkedOut = Get-WorktreeFor -Path $RepoRoot -Branch $integration.Branch
@@ -283,6 +291,10 @@ function Invoke-Status {
         }
     }
 
+    Write-DiskStatus
+}
+
+function Write-DiskStatus {
     # Every lane multiplies what the toolchain writes, and a full disk fails as a broken build rather
     # than as a full disk -- so the volume is reported where the lanes are.
     foreach ($space in (Get-TreeSpaces -Process $Process -RepoRoot $RepoRoot)) {

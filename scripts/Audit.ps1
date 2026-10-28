@@ -102,8 +102,16 @@ if (-not (Get-Field $Process 'unit' $null)) {
 if (-not (Get-Field $Process 'evidence' $null)) {
     Add-Gap 'no evidence declared' 'Nothing connects a claim to the test that proves it, so built means written.' 'add evidence { noun, mark, search }'
 }
-if (-not (Get-Field $Process 'archive' $null)) {
+# An overlay replaces nothing -- the team's instructions stay where they are, read-only references --
+# so there is no archive to declare, and git could not hold one immutable if there were.
+$documents = Get-Documents $Process
+if ($documents.Committed -and -not (Get-Field $Process 'archive' $null)) {
     Add-Gap 'no archive declared' 'Replacing is only safe because what it replaced is still there, read-only.' 'add archive'
+}
+if (-not $documents.Committed -and -not $documents.Backup) {
+    Add-Gap 'the documents are not committed, and nothing backs them up' `
+            'Git never holds them, so this disk is their only copy and nothing records how they changed.' `
+            'set documents.backup to a folder outside the repository, and install templates/hooks/post-commit'
 }
 
 $tiers = ConvertTo-Array (Get-Field $Process 'tiers' @())
@@ -125,7 +133,34 @@ if (-not $integration) {
     Add-Gap 'no integration branch declared' 'Landing has no target, so work cannot leave a lane by any route this understands.' 'add integration { branch, primary, mode }'
 } else {
     $resolved = Get-Integration $Process
-    if ($resolved.Mode -eq 'objects') {
+    if ($resolved.Mode -eq 'promote') {
+        if (-not $resolved.Prefix) {
+            Add-Gap 'promote mode names no prefix' `
+                    'A task branch promotes to its own name less the prefix; with none, it would push itself.' `
+                    'add integration.prefix, e.g. "<you>/"'
+        }
+        if (-not $resolved.Base) {
+            Add-Gap 'promote mode names no base' `
+                    'The tiers measure what changed from the merge base with it, and REACH_BASE reaches them empty.' `
+                    'add integration.base -- the branch the team''s CI diffs against, e.g. "origin/main"'
+        }
+
+        # The hooks are what make "only a promoted commit reaches the team" true rather than a habit.
+        # Each carries the marker, so a hook somebody else installed under the same name is not read
+        # as this one.
+        $hooks = Get-GitValue -Path $RepoRoot -Arguments @('rev-parse', '--path-format=absolute', '--git-path', 'hooks')
+        $missing = @()
+        foreach ($hook in @('pre-commit', 'pre-merge-commit', 'pre-push')) {
+            $path = if ($hooks) { Join-Path $hooks $hook } else { '' }
+            if (-not $path -or -not (Test-Path -LiteralPath $path) -or ((Read-TextUtf8 $path) -notmatch 'reach-overlay')) { $missing += $hook }
+        }
+        if ($missing.Count -gt 0) {
+            Add-Gap ("the overlay hooks are not installed: {0}" -f ($missing -join ', ')) `
+                    'Nothing stops a commit on a team branch, or a push of a commit no tier passed on.' `
+                    'copy them from the plugin''s templates/hooks, set the prefix line in each, and make them executable'
+        }
+    }
+    elseif ($resolved.Mode -eq 'objects') {
         $exists = Invoke-Git -Path $RepoRoot -Arguments @('rev-parse', '--verify', "refs/heads/$($resolved.Branch)")
         if ($exists.Code -ne 0) {
             Add-Gap ("the integration branch '{0}' does not exist" -f $resolved.Branch) 'Nothing can land.' ("git branch {0}" -f $resolved.Branch)
@@ -140,9 +175,11 @@ if (-not $integration) {
     }
 }
 
-if ($lanes.Count -eq 0) {
-    Add-Gap 'no lanes declared' 'Commands run in the checkout you are working in, so two agents share one index and one working tree, and a run tests a tree other than the one that lands.' 'add lanes'
-} else {
+# `"lanes": []` is a decision -- one person, one checkout, the reviewers landing -- and is read as one,
+# as `"disk": {}` is. Only a field that is absent is a gap.
+if (-not $Process.PSObject.Properties.Match('lanes').Count) {
+    Add-Gap 'no lanes declared' 'Commands run in the checkout you are working in, so two agents share one index and one working tree, and a run tests a tree other than the one that lands.' 'add lanes -- or "lanes": [] where one checkout is the whole of it'
+} elseif ($lanes.Count -gt 0) {
     foreach ($lane in $lanes) {
         $name = Get-Field $lane 'name' '?'
         $config = Get-LaneConfig -Process $Process -RepoRoot $RepoRoot -Name $name
@@ -165,7 +202,7 @@ if ($lanes.Count -eq 0) {
 
 $shim = Join-Path $RepoRoot 'Scripts/reach.ps1'
 if (-not (Test-Path -LiteralPath $shim)) {
-    Add-Gap 'no Scripts/reach.ps1' 'Every documented command names a path that moves with the plugin version.' 'copy templates/reach.ps1 from the plugin and commit it'
+    Add-Gap 'no Scripts/reach.ps1' 'Every documented command names a path that moves with the plugin version.' 'copy templates/reach.ps1 from the plugin and commit it -- in an overlay, keep it uncommitted with the rest'
 } else {
     # The shim is copied once, so a verb the plugin adds later is one it refuses with "say which",
     # which reads as a typo rather than an old copy.
@@ -175,7 +212,7 @@ if (-not (Test-Path -LiteralPath $shim)) {
         $have = @([regex]::Matches((Read-TextUtf8 $shim), $verbPattern) | ForEach-Object { $_.Groups[1].Value })
         $missing = @([regex]::Matches((Read-TextUtf8 $template), $verbPattern) | ForEach-Object { $_.Groups[1].Value } | Where-Object { $have -notcontains $_ })
         if ($missing.Count -gt 0) {
-            Add-Gap ("Scripts/reach.ps1 does not route: {0}" -f ($missing -join ', ')) 'It was copied from an older plugin, and refuses those verbs as unknown.' 'copy templates/reach.ps1 from the plugin again and commit it'
+            Add-Gap ("Scripts/reach.ps1 does not route: {0}" -f ($missing -join ', ')) 'It was copied from an older plugin, and refuses those verbs as unknown.' 'copy templates/reach.ps1 from the plugin again -- and commit it, unless this is an overlay'
         }
     }
 }

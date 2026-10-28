@@ -1,6 +1,8 @@
 #Requires -Version 5.1
 <#
-    Runs a reach script against this repository. Written here by /reach:adopt; commit it.
+    Runs a reach script against this repository. Written here by /reach:adopt; commit it -- unless this
+    is a personal overlay, whose shim stays uncommitted with the rest of it. Either way the scripts run
+    with the folder above this one as their root: the folder holding process.json.
 
       pwsh Scripts/reach.ps1 gate            the blocking gate      0 clean, 1 blocking, 2 refused
       pwsh Scripts/reach.ps1 all             gate + every tier      0 pass, 1 fail, 3 something skipped
@@ -9,6 +11,8 @@
       pwsh Scripts/reach.ps1 builders <verb> take | drop | held | ready | pending | reject | rejection | state
       pwsh Scripts/reach.ps1 land -Lane ...  land a lane onto the integration branch, then publish
       pwsh Scripts/reach.ps1 publish         push the refs that carry the process, after one failed
+      pwsh Scripts/reach.ps1 promote         an overlay's land: every tier on this commit, then push it for review
+      pwsh Scripts/reach.ps1 backup          mirror an overlay's uncommitted documents, and commit the mirror
       pwsh Scripts/reach.ps1 run <lane>      run a lane unattended
       pwsh Scripts/reach.ps1 audit           what this repo is missing, against the installed version
       pwsh Scripts/reach.ps1 prove           the plugin's own negative controls, gate and lanes
@@ -40,6 +44,8 @@ $verbs = @{
     'builders' = 'Builders.ps1'
     'land'  = 'Land.ps1'
     'publish' = 'Publish.ps1'
+    'promote' = 'Promote.ps1'
+    'backup' = 'Backup.ps1'
     'run'   = 'Run-Lane.ps1'
     'audit' = 'Audit.ps1'
     'clean' = 'Clean-Disk.ps1'

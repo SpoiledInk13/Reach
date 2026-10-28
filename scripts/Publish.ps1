@@ -33,6 +33,10 @@ $Process = Read-ProcessConfig $RepoRoot
 if (-not $Process) { Write-Host 'REFUSED: no process.json. Run /reach:adopt first.' -ForegroundColor Red; exit 2 }
 
 $integration = Get-Integration $Process
+if ($integration.Mode -eq 'promote') {
+    Write-Host "REFUSED: integration.mode is 'promote'. Your own branches are never pushed; Scripts/reach.ps1 promote pushes a verified commit for review." -ForegroundColor Red
+    exit 2
+}
 if (-not $integration.Publish) {
     # Asked for by name, so the setting is reported rather than obeyed silently -- someone running
     # this wants to know why nothing moved.

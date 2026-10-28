@@ -20,8 +20,12 @@
 function Test-PrimaryIsStale {
     $integration = Get-Integration $Process
 
-    # In push mode there is no local integration branch to fall behind: landing is the reviewers'.
-    if ($integration.Mode -ne 'objects') { return }
+    # In push and promote modes there is no local integration branch to fall behind: landing is the
+    # reviewers'. Said, rather than returned in silence, because a silent return reads as "not stale".
+    if ($integration.Mode -ne 'objects') {
+        Set-NotApplicable ("integration.mode is '{0}', so no branch here is advanced under this checkout" -f $integration.Mode)
+        return
+    }
 
     $head = Get-GitValue -Path $RepoRoot -Arguments @('rev-parse', '--abbrev-ref', 'HEAD')
     if (-not $head) { return }

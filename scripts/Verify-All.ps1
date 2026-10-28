@@ -29,6 +29,11 @@
         change at all is not this case: that tree's verification is a run this one cannot see. Empty
         by default, so nothing is skipped until a project measures what its tiers read.
 
+      * Every tier runs from the process root with REACH_BASE set to what "changed" is measured from:
+        `integration.base`, or the integration branch when there is none. A tier that diffs -- a linter
+        on changed lines, a style check on added files -- reads it rather than hard-coding a branch,
+        which is what an overlay's tiers did until it was named here.
+
     Exit 0 all tiers passed. 1 something failed. 3 something was skipped. 2 refused to start.
 
 .PARAMETER Root
@@ -98,7 +103,8 @@ if ($List) {
 # changed -- half of one lane's lands, measured. What changed is the merge base with the integration
 # branch to HEAD, plus whatever is uncommitted, and a rename counts on both sides.
 $Unread = @(Get-Field $Process 'unread' @() | Where-Object { $_ })
-$IntegrationBranch = Get-Field (Get-Field $Process 'integration' $null) 'branch' 'develop'
+$IntegrationBranch = (Get-Integration $Process).Base
+$env:REACH_BASE = $IntegrationBranch
 $Changed = $null
 if (-not $Whole -and -not $Tier -and -not $SkipGate -and $Unread.Count -gt 0) {
     $mergeBase = Get-GitValue -Path $RepoRoot -Arguments @('merge-base', $IntegrationBranch, 'HEAD')

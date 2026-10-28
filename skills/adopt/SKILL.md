@@ -21,9 +21,11 @@ never there. Do not run it unattended, and do not offer to.
 
 ## 0. Which of the two jobs this is
 
-**Check for `process.json` first.** It decides everything below.
+**Check for `process.json` first** — at the repository root, or in a folder directly under it that
+also holds `Scripts/reach.ps1`, which is a personal overlay (step 2). It decides everything below, and
+in an overlay every `Scripts/reach.ps1` in this document is `<folder>/Scripts/reach.ps1`.
 
-**If there is none, this is a first adoption** — steps 1 to 7.
+**If there is none, this is a first adoption** — steps 1 to 7, or steps 1, 2 and **The overlay**.
 
 **If there is one, this repository has already adopted, and you are topping it up.** Adoption happens
 once; reach keeps changing, so a repository set up against an earlier version is missing whatever
@@ -79,8 +81,20 @@ the `Open:` inbox is a ticket queue nobody owns; pull requests and review alread
 they do it better because they have humans attached.
 
 On a repository you do not own, "replace" means replace **how the agent is instructed and verified**.
-The team's own workflow — pull requests, review, CI — is not yours to replace, and the universal layer
-is the whole of what you propose. Say this out loud rather than quietly scoping down.
+The team's own workflow — pull requests, review, CI — is not yours to replace. Say this out loud rather
+than quietly scoping down, and then ask the one question that decides the rest:
+
+> *The universal layer for the team, or a personal overlay for your own tasks?*
+
+**The universal layer** is the team's, committed, and steps 3 to 7 apply as written with
+`integration.mode` set to `push`.
+
+**A personal overlay** is the whole process, governance included, over one contributor's own tasks.
+The one-owner assumption holds exactly, because the owner is the only person who ever reads these
+documents; what changes is that **nothing reach writes is ever committed**. Only code, tests and their
+evidence marks reach the team, through its usual review. Follow **The overlay** below instead of steps
+3 to 7: there is no old workflow of the owner's to tag, archive or remove, and the team's is not theirs
+to touch.
 
 ## 3. Tag, then archive
 
@@ -168,7 +182,7 @@ Scripts/reach.ps1 lane seed build
 ```
 
 On a repository you do not own, do none of this. Set `integration.mode` to `push`: lanes still isolate
-the work, and landing stays with the reviewers.
+the work, and landing stays with the reviewers. A personal overlay has no lanes at all (**The overlay**).
 
 **Builders are for a project whose expensive tier needs a harness only one checkout can hold**, and
 nothing else. Ask what holds the slow tier — an editor, an emulator, a device, a warm database — and
@@ -201,6 +215,60 @@ pattern; that failure is common and it reads as green.
 A tier marked `human` is never run. If an outcome can only be verified by looking at it or listening
 to it, nothing that runs may claim otherwise.
 
+## The overlay
+
+Everything lives in **one folder at the repository root**, named by the owner — `<you>/` below — and
+that folder is the process root: `process.json` is `<you>/process.json`, and every path in it is
+relative to `<you>/`.
+
+**Keep it out of git through `.git/info/exclude`**, adding `/<you>/`, and never through `.gitignore`,
+which is the team's file. Check `git check-ignore -v <you>/process.json` first: the team may already
+ignore something by that name, which is harmless, or may track something there, which means another
+name.
+
+**Instructions.** An untracked root `CLAUDE.md` holding only `@<you>/CLAUDE.md`, excluded the same way
+— or, where the team tracks a root `CLAUDE.md`, that one import line in an untracked `CLAUDE.local.md`.
+`<you>/CLAUDE.md` lists the team's documents and agent instructions as **references: read, never
+moved, never edited**, and that list is what step 4's table becomes here. A behaviour rule that belongs
+to one of the owner's own tasks becomes a claim in a unit document as usual; everything else stays
+where the team keeps it.
+
+**`process.json`** starts from `templates/process-overlay.json`:
+
+| Field | In an overlay |
+|---|---|
+| `evidence.search` | `../<tests>` — the team's tests, read from outside the root. No junction. |
+| `human.layer` | `../<views>`, where the owner's tasks have a presentation layer |
+| `documents` | `{ "committed": false, "backup": "<folder>" }` — ask where. Outside the repository; a folder a cloud client syncs takes it off the machine too |
+| `integration` | `{ "mode": "promote", "prefix": "<you>/", "base": "origin/<default>", "remote": "origin" }` — no `branch`, no `primary` |
+| `lanes` | `[]` — one person, one checkout, and the reviewers land |
+| `archive` | absent: nothing is replaced, so nothing is archived |
+| `tiers` | **CI's own commands**, in the image CI uses where it runs one, `requires`-gated on it being there. A tier that diffs — a linter on changed lines, a style check on added files — reads `REACH_BASE` rather than naming a branch |
+
+**The shim** is `<you>/Scripts/reach.ps1`, copied from `templates/reach.ps1` and left uncommitted with
+the rest. Every command is `pwsh <you>/Scripts/reach.ps1 <verb>` from the repository root, **never
+`Scripts/reach.ps1`**: on a case-insensitive file system that path resolves into a team's lowercase
+`scripts/`. Say so in `<you>/CLAUDE.md`.
+
+**Branches.** A task is worked on `<you>/<name>`, where `<name>` is the branch the team's tracker made
+for the issue. `promote` runs every tier on that branch's commit and pushes it to `<name>`, never
+forced; the merge request is opened from `<name>` by hand. `land`, `publish`, `lane` and `run` refuse
+or have nothing to act on.
+
+**The hooks** are what make *only a promoted commit reaches the team* true rather than a habit. Copy
+`templates/hooks/` into `git rev-parse --git-path hooks`, set the `prefix=` and `root=` lines in each,
+and make them executable: `pre-commit` and `pre-merge-commit` refuse a commit off `<you>/*`,
+`pre-push` refuses a push of `<you>/*` and of any commit `promote` did not record, and `post-commit`
+runs `backup`. **If the hooks directory already holds hooks** — the team's, or a `core.hooksPath`
+somebody set — stop and say so: chaining them is the owner's call, and overwriting one is deleting
+the team's guard.
+
+**The backup is the documents' only other copy, and their only history.** `backup` mirrors the folder
+into `documents.backup` and commits the mirror there, so a deleted document is still in its log; the
+`post-commit` hook runs it after every commit, and `/reach:ideate` runs it with the decision's message.
+
+Then prove it as step 6 says, with one control more.
+
 ## 6. Prove it, or it did not happen
 
 Three things, in order, and report the actual output of each:
@@ -211,6 +279,10 @@ Three things, in order, and report the actual output of each:
    has never been observed failing on *this* repository is decoration here regardless of what it does
    elsewhere.
 3. `Scripts/reach.ps1 all` — every tier runs. A tier reported `SKIPPED` is not a pass; say so.
+4. **In an overlay, the hooks.** Commit something on `<you>/<task>`, run
+   `git push <remote> <you>/<task>:<task>`, and watch `pre-push` refuse it as unpromoted. A hook that
+   has never been seen refusing is decoration, and this one is all that stands between an unverified
+   commit and the team's reviewers.
 
 ## 7. Finish the replacement
 
@@ -229,4 +301,7 @@ report is what lets them check that the table is what actually happened.
 - Delete anything that is not already in the archive.
 - Invent a tier. If nobody knows how the project is verified, that is the finding — report it.
 - Report a pass when a tier was skipped.
-- Leave two workflows in the repository.
+- Leave two workflows in the repository. An overlay is not that: the team's is the only one the
+  repository holds, and the owner's lives in a folder git never sees.
+- Commit, move or edit anything of the team's from an overlay — its `.gitignore`, its hooks, its
+  instructions.

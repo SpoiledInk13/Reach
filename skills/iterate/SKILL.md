@@ -17,6 +17,13 @@ holds only short event lines, so it can follow a night of runs.
 Run it from the **primary checkout**. The supervisor refuses to drive a lane from inside itself,
 because syncing the lane rewrites the scripts the loop is running.
 
+**A personal overlay declares no lanes**, so there is nothing to run unattended: say so and stop.
+
+**Where the commands run.** Every `Scripts/reach.ps1` here is relative to the process root, the folder
+holding `process.json`. In a personal overlay that is a folder inside the repository, so the command is
+`<folder>/Scripts/reach.ps1` from the repository root — never `Scripts/reach.ps1` there, which on a
+case-insensitive file system resolves into the team's own `scripts/`.
+
 ## Parse the request
 
 Read the arguments as an action and a lane. No action means `start`; no lane means `build`.

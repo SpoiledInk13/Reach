@@ -9,3 +9,7 @@
 # `auto` rather than a list: git detects binary content and leaves it alone, so nothing has
 # to be enumerated ahead of being added.
 * text=auto
+
+# Hook templates are run by sh wherever they are copied, and a CRLF checkout puts a carriage return
+# on the end of every value they set -- `prefix='me/'` then matches no branch at all.
+templates/hooks/* text eol=lf

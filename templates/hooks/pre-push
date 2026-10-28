@@ -1,0 +1,51 @@
+#!/bin/sh
+# reach-overlay: pre-push
+#
+# The only thing that reaches the team's remote is a commit every tier passed on. So this refuses:
+#
+#   - any push of your own branches, '<prefix>*' -- they stay on this machine;
+#   - a push to '<name>' with no '<prefix><name>' here that it could have been promoted from;
+#   - a push to '<name>' of a commit `Scripts/reach.ps1 promote` did not record for '<name>'.
+#
+# A deletion pushes no commit and passes, and so does a tag: neither is work in front of reviewers.
+#
+# Copied by /reach:adopt into the hooks directory with the prefix below set to integration.prefix.
+
+prefix='<you>/'
+record="$(git rev-parse --path-format=absolute --git-common-dir)/reach-promoted"
+status=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    case "$remote_ref" in
+        refs/heads/*) ;;
+        *) continue ;;
+    esac
+    name=${remote_ref#refs/heads/}
+
+    case "$name" in
+        "$prefix"*)
+            echo "reach-overlay: refusing to push '$name'. Your own branches stay here; promote pushes what passed." >&2
+            status=1
+            continue ;;
+    esac
+
+    # All zeros, of whatever hash length: a deletion.
+    case "$local_sha" in
+        *[!0]*) ;;
+        *) continue ;;
+    esac
+
+    if ! git show-ref --verify --quiet "refs/heads/$prefix$name"; then
+        echo "reach-overlay: refusing to push '$name': there is no '$prefix$name' here to have promoted it from." >&2
+        status=1
+        continue
+    fi
+
+    if ! grep -qx "$local_sha $name" "$record" 2>/dev/null; then
+        echo "reach-overlay: refusing to push $local_sha to '$name': no promotion passed every tier on that commit. Run Scripts/reach.ps1 promote from '$prefix$name'." >&2
+        status=1
+        continue
+    fi
+done
+
+exit $status
