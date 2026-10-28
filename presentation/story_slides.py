@@ -205,7 +205,8 @@ MAIN_SLIDES = [{'title': 'Reach: I just wanted the character to walk',
            'stale-primary guard catches decisions made from an outdated checkout. When publication is '
            'enabled and a remote exists, the integration push determines success; other branch backups are '
            'best-effort. If publishing fails after the merge, retry publish. Team repositories can retain '
-           'reviewer-controlled landing through push mode.',
+           'reviewer-controlled landing through push mode, and a personal overlay replaces landing '
+           'with promote: every tier on the exact commit, then a push for review.',
   'source': 'skills/ideate/SKILL.md: Landing; scripts/Land.ps1; scripts/lib/Common.ps1'},
  {'title': 'Verification takes longer. Keep the work moving.',
   'subtitle': '/reach:iterate carries build work across runs while you follow progress.',
@@ -319,16 +320,17 @@ MAIN_SLIDES = [{'title': 'Reach: I just wanted the character to walk',
   'subtitle': 'Enough structure to stay in control, with real upkeep attached.',
   'bullets': ['Best fit: one owner, a growing project, and more agent output than they can comfortably '
               'review.',
-              'Team repositories can use the verification layer with their existing review process.',
+              'Team repositories can use the verification layer, or run it all over your own tasks.',
               'Contracts and worktrees take upkeep. A small utility may not need them.',
-              '83 controls; used daily on one downstream project. A second adoption is still untested.'],
+              '110 controls; used daily on one downstream project. A second adoption is still untested.'],
   'notes': 'This is most useful when understanding and reviewing the work have become the bottleneck. It '
            'also has costs: someone has to maintain the contracts, evidence, and lanes. For a small or '
            'mostly maintenance project, that can be more process than the work needs. Team repositories can '
-           'take the verification layer without replacing their review practices. The documented control '
-           'suites include 24 gate controls and 59 lane, landing, supervisor, and audit controls, with '
-           'nine gate checks. Counts were checked against source; the proof suites were not rerun '
-           'to prepare this presentation. The README now reports daily use of the commands, lanes, '
+           'take the verification layer without replacing their review practices. One contributor can '
+           'also run the whole process over their own tasks as a personal overlay, covered in the '
+           'appendix. The control suites hold 29 gate controls and 81 lane, landing, supervisor, audit, '
+           'disk, and overlay controls, over nine gate checks; both suites were run green for this '
+           'version. The README now reports daily use of the commands, lanes, '
            'builders, and unattended supervisor on one downstream project. Recent repairs came from '
            'that use. A second adoption remains untested, so this is experience with one project '
            'rather than broad validation.',

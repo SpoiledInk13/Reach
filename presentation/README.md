@@ -1,20 +1,19 @@
-# Reach developer presentation — version 1.1
+# Reach developer presentation — version 1.2
 
-19 main slides and 5 appendix slides, with speaker notes. Allow approximately
+19 main slides and 6 appendix slides, with speaker notes. Allow approximately
 25–30 minutes for the main story; use the appendix for discussion.
 
-Version 1.1 updates ownership, lane questions, acceptance, contract readiness, and
-project status against Reach 0.14.1 and the current README. It adds the owner-feedback
-loop, builders and the integrator, and unattended operation. `/reach:iterate` is in
-the main story, showing how long verification can continue across runs without
-waiting around to restart the work. The 83 control definitions
-were counted in source; the proof suites were not rerun for this presentation.
+Version 1.2 brings the deck to Reach 0.17.0. It adds an appendix slide on the
+personal overlay — the whole process run over one contributor's own tasks on a
+team repository, promoting verified commits into the team's review — and mentions
+it where the deck discusses team repositories and landing. Both proof suites, 110
+controls, were run green for this version.
 
 ## Storybook visual edition
 
-The illustrated edition uses the v1.1 copy and speaker notes, with the existing
-five storybook illustrations, skill labels, and editable diagrams. New diagrams
-show the feedback loop, unattended iteration, and the builder/integrator split.
+The illustrated edition uses the v1.2 copy and speaker notes, with the existing
+five storybook illustrations, skill labels, and editable diagrams, including the
+feedback loop, unattended iteration, the builder/integrator split, and the overlay.
 
 - [Illustrated PowerPoint](Reach-developer-presentation-storybook.pptx)
 - [PDF preview](Reach-developer-presentation-storybook.pdf)
@@ -25,8 +24,8 @@ requirements below. The layout uses Georgia and Calibri, and its text-fit check
 uses their Windows font files. PowerPoint-rendered previews were used for review.
 The original v1.0 files remain available as the previous content baseline.
 
-- [Plain PowerPoint presentation](Reach-developer-presentation-v1.1.pptx)
-- [Slide text and speaker notes](Reach-developer-presentation-v1.1.md)
+- [Plain PowerPoint presentation](Reach-developer-presentation-v1.2.pptx)
+- [Slide text and speaker notes](Reach-developer-presentation-v1.2.md)
 - [Previous v1.0 content](Reach-developer-presentation-v1.0.md)
 
 The fictional Pip story illustrates the workflow. The deck distinguishes that story

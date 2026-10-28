@@ -34,7 +34,7 @@ ROLES = [
     ('THE FEEDBACK LOOP', RUST), ('THE HANDOFF', INK),
     ('IN PRACTICE', INK), ('PROJECT FIT', INK), ('BENEFITS', INK),
     ('ADOPT', INK), ('REPOSITORY MAP', INK), ('VERIFICATION', RUST),
-    ('BUILDERS + INTEGRATOR', RUST),
+    ('BUILDERS + INTEGRATOR', RUST), ('PERSONAL OVERLAY', RUST),
 ]
 SCENES = {
     1: ('pip-paperwork.png', 'The process grew. The playable goal stayed small.'),
@@ -158,6 +158,12 @@ def diagram(slide, index):
         card(slide,x+2.7,2.22,2.45,1.5,'BUILDER 2','Claim + prove\nReady commit',RUST)
         text(slide,x,3.92,w,.4,'Ready tips → merged batch',19,INK,True)
         card(slide,x,4.55,w,1.45,'INTEGRATOR','Every tier, including the harness.\nThen land the verified tree.',GREEN)
+    elif index == 24:
+        card(slide,x,2.22,w,1.02,'YOUR FOLDER','Documents + shim. Never committed.',INK)
+        text(slide,x+2.3,3.3,.6,.4,'↓',24,MUTED)
+        card(slide,x,3.78,w,1.02,'YOUR TASK BRANCH','you/<name>: code, tests, marks',RUST)
+        text(slide,x,4.92,w,.4,'promote: every tier, then push',19,INK,True)
+        card(slide,x,5.45,w,1.02,'TEAM REVIEW','<name> → merge request',GREEN)
 
 
 def fit_check(prs):
@@ -224,7 +230,7 @@ def build():
                     card(s,x,2.64,3.82,2.62,h,b,c)
                     text(s,x+.2,5.49,3.4,.5,['Your judgment','Automated evidence','Tests + your judgment'][j],20,c,True)
             else:
-                split=index in SCENES or index in (6,8,10,11,12,13,15,23)
+                split=index in SCENES or index in (6,8,10,11,12,13,15,23,24)
                 w=6.28 if split else 11.52
                 row=.94 if len(item['bullets'])<=4 else .86
                 for j,b in enumerate(item['bullets']):

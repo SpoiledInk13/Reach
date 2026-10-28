@@ -18,7 +18,7 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 
 OUT = Path(__file__).resolve().parent
-VERSION = '1.1'
+VERSION = '1.2'
 OUTPUT_STEM = f'Reach-developer-presentation-v{VERSION}'
 from story_slides import MAIN_SLIDES, BENEFITS_SLIDE
 
@@ -68,7 +68,7 @@ SLIDES = MAIN_SLIDES + [BENEFITS_SLIDE,
  'appendix': True,
  'bullets': ['pwsh Scripts/reach.ps1 gate — check repository constraints and evidence links.',
              'pwsh Scripts/reach.ps1 all — run the gate and automated verification tiers.',
-             'pwsh Scripts/reach.ps1 prove — exercise the 83 supplied controls.',
+             'pwsh Scripts/reach.ps1 prove — exercise the 110 supplied controls.',
              'pwsh Scripts/reach.ps1 audit — find adoption gaps and version mismatches.',
              'Add custom checks when a real defect shows the need, then prove they can fail.'],
  'notes': 'A custom check is a PowerShell file in the configured checks directory with a matching '
@@ -78,11 +78,12 @@ SLIDES = MAIN_SLIDES + [BENEFITS_SLIDE,
           'changes and branch commits, including deletion of the last archive file. Controls can also check '
           'diagnostic wording. An unset document cap is now reported as missing configuration, and audit '
           'identifies version drift. Optional unattended operation requires explicit opt-in and disables '
-          'agent permission prompts. The suites contain 24 gate controls and 59 lane, landing, '
-          'supervisor, and audit controls. Nine gate checks include ContractIsDeclared, TriageLines, '
-          'and WalkthroughReferences, keeping contract readiness, feedback routing, and live '
-          'walkthrough references queryable. Counts were checked in source; these suites were not '
-          'rerun for this presentation.',
+          'agent permission prompts. The suites contain 29 gate controls and 81 lane, landing, '
+          'supervisor, audit, disk, and overlay controls. Four of the gate controls require a green '
+          'to mean what it says: a check with nothing to measure prints N/A rather than passing. Nine '
+          'gate checks include ContractIsDeclared, TriageLines, and WalkthroughReferences, keeping '
+          'contract readiness, feedback routing, and live walkthrough references queryable. Both '
+          'suites were run green for this version.',
  'source': 'README.md: Verify, Writing your own checks; scripts/Audit.ps1; '
            'scripts/Prove-Gate.ps1; scripts/Prove-Lanes.ps1'},
     {'title': 'Appendix: many builders, one game harness',
@@ -104,6 +105,30 @@ SLIDES = MAIN_SLIDES + [BENEFITS_SLIDE,
           'qualified observation from one project, not a controlled benchmark or a promised speedup.',
  'source': 'README.md: Builders, when one harness is the bottleneck; scripts/Builders.ps1; '
            'scripts/Verify-All.ps1; skills/build/SKILL.md: Builders'},
+    {'title': 'Appendix: your own tasks on a team repository',
+ 'subtitle': 'A personal overlay runs the whole process where the team owns the workflow.',
+ 'appendix': True,
+ 'bullets': ['One folder git never sees holds process.json, the documents, and the shim.',
+             'Evidence marks go in the team’s tests. Only code and tests reach the team.',
+             'promote runs every tier on the exact commit, then pushes it for review.',
+             'Hooks refuse commits off your branches and pushes promote did not record.',
+             'backup mirrors the folder and commits the mirror, so deletions keep a history.'],
+ 'notes': 'The governance layer assumes one owner who answers every question, which is why a team '
+          'normally takes only the verification layer. One contributor can still take all of it over '
+          'their own tasks, because they are the only reader of those documents. Adopt asks which: the '
+          'universal layer for the team, or a personal overlay. The overlay lives in one folder at the '
+          'repository root, excluded through .git/info/exclude rather than the team’s .gitignore, '
+          'and every command runs through that folder’s Scripts/reach.ps1. Evidence is read from '
+          'the team’s tests through ../, with no junction. There are no lanes and no land: work is '
+          'done on <you>/<name>, and promote refuses a dirty tree, a failed or skipped tier, or a HEAD '
+          'that moved, records the commit, and pushes it to <name> without forcing. The merge request '
+          'is opened by hand and merging stays the reviewers’. Checks with nothing to measure in '
+          'this setup print N/A instead of passing silently, and tiers read REACH_BASE for the branch CI '
+          'diffs against. The mode comes from a setup built by hand on a large team repository and '
+          'reported as issue 3; the plugin version is proven by its control suite, not yet by a second '
+          'overlay adoption.',
+ 'source': 'GitHub issue 3; skills/adopt/SKILL.md: The overlay; scripts/Promote.ps1; scripts/Backup.ps1; '
+           'templates/hooks; README.md: A personal overlay on a team repository'},
 ]
 
 

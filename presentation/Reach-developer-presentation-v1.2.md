@@ -1,6 +1,6 @@
-# Reach — developer presentation v1.1
+# Reach — developer presentation v1.2
 
-19 main slides + 5 appendix slides. Approximately 25-30 minutes plus discussion; appendices optional. Plain editable layout; visual style and assets intentionally deferred.
+19 main slides + 6 appendix slides. Approximately 25-30 minutes plus discussion; appendices optional. Plain editable layout; visual style and assets intentionally deferred.
 
 Pip and the cottage fireplace are a fictional teaching story. Speaker notes distinguish repository mechanisms, presenter observations, inferred benefits, and fictional events. Developer remarks in subtitles are illustrative, not research quotations. The presentation contains no live demonstration or claimed application test results.
 
@@ -214,7 +214,7 @@ The skills follow the workflow; Reach’s scripts enforce the landing checks.
 
 **Speaker notes**
 
-Separate worktrees give each lane its own files, staging index, branch, and build cache. They don't eliminate design conflicts, but they remove the collision caused by editing and testing the same checkout. Build supplies the commit whose verification tiers ran; ideate supplies the commit whose gate ran. Passing -Verified makes landing refuse a different merged tree. Without that flag the script can warn and proceed, so using it is part of the workflow. The stale-primary guard catches decisions made from an outdated checkout. When publication is enabled and a remote exists, the integration push determines success; other branch backups are best-effort. If publishing fails after the merge, retry publish. Team repositories can retain reviewer-controlled landing through push mode.
+Separate worktrees give each lane its own files, staging index, branch, and build cache. They don't eliminate design conflicts, but they remove the collision caused by editing and testing the same checkout. Build supplies the commit whose verification tiers ran; ideate supplies the commit whose gate ran. Passing -Verified makes landing refuse a different merged tree. Without that flag the script can warn and proceed, so using it is part of the workflow. The stale-primary guard catches decisions made from an outdated checkout. When publication is enabled and a remote exists, the integration push determines success; other branch backups are best-effort. If publishing fails after the merge, retry publish. Team repositories can retain reviewer-controlled landing through push mode, and a personal overlay replaces landing with promote: every tier on the exact commit, then a push for review.
 
 **Source basis:** skills/ideate/SKILL.md: Landing; scripts/Land.ps1; scripts/lib/Common.ps1
 
@@ -306,13 +306,13 @@ These are my observations from using the process. Ideate has become the main pla
 Enough structure to stay in control, with real upkeep attached.
 
 - Best fit: one owner, a growing project, and more agent output than they can comfortably review.
-- Team repositories can use the verification layer with their existing review process.
+- Team repositories can use the verification layer, or run it all over your own tasks.
 - Contracts and worktrees take upkeep. A small utility may not need them.
-- 83 controls; used daily on one downstream project. A second adoption is still untested.
+- 110 controls; used daily on one downstream project. A second adoption is still untested.
 
 **Speaker notes**
 
-This is most useful when understanding and reviewing the work have become the bottleneck. It also has costs: someone has to maintain the contracts, evidence, and lanes. For a small or mostly maintenance project, that can be more process than the work needs. Team repositories can take the verification layer without replacing their review practices. The documented control suites include 24 gate controls and 59 lane, landing, supervisor, and audit controls, with nine gate checks. Counts were checked against source; the proof suites were not rerun to prepare this presentation. The README now reports daily use of the commands, lanes, builders, and unattended supervisor on one downstream project. Recent repairs came from that use. A second adoption remains untested, so this is experience with one project rather than broad validation.
+This is most useful when understanding and reviewing the work have become the bottleneck. It also has costs: someone has to maintain the contracts, evidence, and lanes. For a small or mostly maintenance project, that can be more process than the work needs. Team repositories can take the verification layer without replacing their review practices. One contributor can also run the whole process over their own tasks as a personal overlay, covered in the appendix. The control suites hold 29 gate controls and 81 lane, landing, supervisor, audit, disk, and overlay controls, over nine gate checks; both suites were run green for this version. The README now reports daily use of the commands, lanes, builders, and unattended supervisor on one downstream project. Recent repairs came from that use. A second adoption remains untested, so this is experience with one project rather than broad validation.
 
 **Source basis:** README.md: Is this for you?, Status; scripts/Prove-Gate.ps1; scripts/Prove-Lanes.ps1
 
@@ -370,13 +370,13 @@ Use the same entry point locally and in automation.
 
 - pwsh Scripts/reach.ps1 gate — check repository constraints and evidence links.
 - pwsh Scripts/reach.ps1 all — run the gate and automated verification tiers.
-- pwsh Scripts/reach.ps1 prove — exercise the 83 supplied controls.
+- pwsh Scripts/reach.ps1 prove — exercise the 110 supplied controls.
 - pwsh Scripts/reach.ps1 audit — find adoption gaps and version mismatches.
 - Add custom checks when a real defect shows the need, then prove they can fail.
 
 **Speaker notes**
 
-A custom check is a PowerShell file in the configured checks directory with a matching Test-<filename> function. The supplied proof suite doesn't automatically cover new custom checks or application behavior. A recent archive-check fix illustrates the need for realistic controls: it caught edits before commit but missed them after commit. It now checks both uncommitted changes and branch commits, including deletion of the last archive file. Controls can also check diagnostic wording. An unset document cap is now reported as missing configuration, and audit identifies version drift. Optional unattended operation requires explicit opt-in and disables agent permission prompts. The suites contain 24 gate controls and 59 lane, landing, supervisor, and audit controls. Nine gate checks include ContractIsDeclared, TriageLines, and WalkthroughReferences, keeping contract readiness, feedback routing, and live walkthrough references queryable. Counts were checked in source; these suites were not rerun for this presentation.
+A custom check is a PowerShell file in the configured checks directory with a matching Test-<filename> function. The supplied proof suite doesn't automatically cover new custom checks or application behavior. A recent archive-check fix illustrates the need for realistic controls: it caught edits before commit but missed them after commit. It now checks both uncommitted changes and branch commits, including deletion of the last archive file. Controls can also check diagnostic wording. An unset document cap is now reported as missing configuration, and audit identifies version drift. Optional unattended operation requires explicit opt-in and disables agent permission prompts. The suites contain 29 gate controls and 81 lane, landing, supervisor, audit, disk, and overlay controls. Four of the gate controls require a green to mean what it says: a check with nothing to measure prints N/A rather than passing. Nine gate checks include ContractIsDeclared, TriageLines, and WalkthroughReferences, keeping contract readiness, feedback routing, and live walkthrough references queryable. Both suites were run green for this version.
 
 **Source basis:** README.md: Verify, Writing your own checks; scripts/Audit.ps1; scripts/Prove-Gate.ps1; scripts/Prove-Lanes.ps1
 
@@ -394,3 +394,19 @@ Use the split when an editor, emulator, or device limits parallel work.
 This is optional. Declare builders on the build lane and mark harness-dependent tiers builders: false. lane seed build-1 creates a separate worktree without the integrator’s harness warm-up. builders take claims a unit before writing; builders ready marks a clean, proven HEAD. The integrator reads builders pending, merges ready tips, verifies the combined tree through every tier, and lands it. A rejection includes a reason; the builder repairs and re-proves its work. land refuses builders. This does not turn a skipped required tier into a pass: the harness tiers are explicitly assigned to the integrator. The README reports about 65 proven rows per day in the preceding week and about 240 during the first two days with two builders. The day before the split already reached 156, so this is a qualified observation from one project, not a controlled benchmark or a promised speedup.
 
 **Source basis:** README.md: Builders, when one harness is the bottleneck; scripts/Builders.ps1; scripts/Verify-All.ps1; skills/build/SKILL.md: Builders
+
+## 25. Appendix: your own tasks on a team repository
+
+A personal overlay runs the whole process where the team owns the workflow.
+
+- One folder git never sees holds process.json, the documents, and the shim.
+- Evidence marks go in the team’s tests. Only code and tests reach the team.
+- promote runs every tier on the exact commit, then pushes it for review.
+- Hooks refuse commits off your branches and pushes promote did not record.
+- backup mirrors the folder and commits the mirror, so deletions keep a history.
+
+**Speaker notes**
+
+The governance layer assumes one owner who answers every question, which is why a team normally takes only the verification layer. One contributor can still take all of it over their own tasks, because they are the only reader of those documents. Adopt asks which: the universal layer for the team, or a personal overlay. The overlay lives in one folder at the repository root, excluded through .git/info/exclude rather than the team’s .gitignore, and every command runs through that folder’s Scripts/reach.ps1. Evidence is read from the team’s tests through ../, with no junction. There are no lanes and no land: work is done on <you>/<name>, and promote refuses a dirty tree, a failed or skipped tier, or a HEAD that moved, records the commit, and pushes it to <name> without forcing. The merge request is opened by hand and merging stays the reviewers’. Checks with nothing to measure in this setup print N/A instead of passing silently, and tiers read REACH_BASE for the branch CI diffs against. The mode comes from a setup built by hand on a large team repository and reported as issue 3; the plugin version is proven by its control suite, not yet by a second overlay adoption.
+
+**Source basis:** GitHub issue 3; skills/adopt/SKILL.md: The overlay; scripts/Promote.ps1; scripts/Backup.ps1; templates/hooks; README.md: A personal overlay on a team repository
