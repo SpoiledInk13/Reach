@@ -368,6 +368,14 @@ spacing value turned out to be a claim the unit already owed about a scrollbar k
 changing the value would have moved every row, left the overlap, and read as progress. An untriaged
 verdict is a stalled walkthrough rather than a note.
 
+**So a verdict standing only on the lane is carried to the trunk here, in the owner's words, rather than
+waited for.** Where the milestone command's tip lands only once the builder's work it carries is verified,
+it holds verdicts nobody can triage and so cannot act on: the triage waits on the land and the land on a
+verification, and the lane sits with nothing it can take. Copy each line byte for byte from what the lane
+added, write its arrow beneath it in the same commit, and say in the message that the lane's next sync
+conflicts there and takes the trunk's side. It lands no lane commit, so the lane is no ancestor of the trunk
+and its own work still lands with its own merge.
+
 **Before you stop, say whether the milestone command can act.** It reaches the owner nowhere else: where
 presentation is a separate lane this command cannot start, a walkthrough that is ready waits exactly as
 long as it takes a person to notice it is. Each walkthrough in progress, and the one on deck, is read alike: it can be taken when no row it needs that
