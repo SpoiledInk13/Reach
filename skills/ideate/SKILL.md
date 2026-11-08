@@ -86,7 +86,10 @@ other side, and invisible to the gate, to the lane and to every grep of the prim
 an owed row, read the lanes as what they added** and put the clause in a second row where one is proving it,
 leaving the row byte-identical to the base its test was written against so the flip still lands clean.
 Measured once: a clause added to a row at 11:00 met a lane test for the row's narrower reading, written
-against the trunk of an hour earlier.
+against the trunk of an hour earlier. **Renaming or deleting such a row is the same read, and its commit
+names the lane test that goes** — the files and the row — because every lane syncing it deletes that test
+(the builder's **A sync that drops a row a lane's test proves**), and a message saying *rewrite* had each
+lane wait on another for the rewrite.
 
 **Whether a document is a contract is its `**Contract:**` header's to say, and nothing else's.** `none`
 means the missing part is load-bearing and the builder does not start the unit; `partial` means what is

@@ -222,6 +222,16 @@ and delete each line it answers in the commit after the merge. **Land no tip sti
 kept goes back to integration with the land, reading as open over an answer already written, and the next
 run parks on it again.
 
+**A sync that drops a row a lane's test proves leaves the deleting to the lane that synced it.** The design
+command rewrites the trunk from what the trunk holds, and a lane's test is not there yet, so a row it renames
+or deletes can still be marked by a test on every lane that carried it in — its writer's and every lane
+merging from it. The gate then names the mark as naming no row, and the fix is the syncing lane's, whoever
+wrote the test: in the commit after the merge, delete the test — the whole fixture, or only the cases
+marking the gone row — and leave the row's new form owed as the trunk wrote it. **Delete, never rewrite in
+place**: two lanes deleting one file merge clean, one deleting while another edits conflicts, so the new
+form's test is a new file written by whichever lane proves it. Waiting on the writer stopped four lanes at
+once, each carrying one fixture past a renamed row and none reading it as its own to touch.
+
 What you may decide yourself is what the contract is indifferent to: names, internal structure, which
 of two mechanisms satisfy it identically. A choice that would change what the contract *says* is a
 question, however confident you are.
