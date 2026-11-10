@@ -47,6 +47,12 @@ Present tense, and only what is true or deliberately intended. The roster's stat
 place unbuilt work is recorded — there is no backlog ledger, because the `unbuilt` entries *are* the
 backlog.
 
+**A sentence a test parses moves with the data it is read against.** Before rewording a document,
+search the tests for its path: a test that reads a sentence and compares it against the shipped data
+turns a reword made ahead of that data into a red trunk that every gate passes. Measured once: a record
+mapping art packs to regions was reworded for a design whose data had not moved, and the trunk stayed red
+for two days. Where the data has not moved, the sentence waits for the land that moves it.
+
 **Deleting a proven claim deletes the evidence that proved it, in the same commit.** A claim's row and
 the test naming that row are one fact, and a check that holds them together holds them in both
 directions — so a document that drops a proven row cannot land on its own, because the check reds on
