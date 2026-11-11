@@ -51,6 +51,14 @@
     lane lock rather than a process table, and it also reports uncommitted work in the lane, which is
     the only trace a session started by hand leaves.
 
+.PARAMETER CloseFinished
+    Close this lane's supervisor windows whose run has ended, which a launch with -NoExit keeps open so
+    their last lines stay readable and which otherwise pile up, one per finish. A window is closed when it
+    does not hold the lane's lock and began before whatever holds it now, or, with nothing holding it,
+    before the newest run's ledger was made. It is kept when it is the newest and that run crashed, when
+    it began after the holder or the newest ledger -- a start refused at a guard, whose window says why
+    -- and when it began under two minutes ago. Prints a `closed:` or `kept:` line for each, exits 0.
+
 .PARAMETER Watch
     Follow the newest ledger as a short event stream, for a chat window rather than a terminal: run
     boundaries, verdicts and a `progress:` line when the lane branch moves, never the per-tool lines
@@ -96,6 +104,7 @@ param(
     [switch]$Follow,
     [switch]$Check,
     [switch]$Watch,
+    [switch]$CloseFinished,
     [switch]$NewRun,
     [switch]$FromEnd,
     [switch]$Stop,
@@ -188,6 +197,11 @@ $script:HolderProbe = { Get-LaneHolder -LaneWorktree $laneConfig.Worktree }
 $script:TipProbe    = { Get-GitValue -Path $laneConfig.Worktree -Arguments @('log', '-1', '--format=%h %s', $laneConfig.Branch) }
 $script:WatchPoll   = 5
 $script:Captured    = $null
+# Seams the self-test replaces for -CloseFinished: this lane's supervisor windows, and closing one.
+$script:WindowProbe  = { @(Get-LaneWindows) }
+$script:WindowCloser = { param([int]$Id) Stop-Process -Id $Id -Force -ErrorAction Stop }
+# A window this young may not have taken the lane's lock yet, so it is never read as ended.
+$script:FreshWindow  = [TimeSpan]::FromMinutes(2)
 # Unbounded for a real watch. The self-test bounds it, so a watch that never sees its last line fails
 # the test rather than hanging it.
 $script:WatchMaxPolls = 0
@@ -303,6 +317,70 @@ function Invoke-LaneWatch {
     }
 }
 
+function Get-LaneWindows {
+    # Every supervisor window for this lane: `reach.ps1 run <lane>` or `Run-Lane.ps1 <lane>`, never a call
+    # only asking it something. PowerShell 7 carries a process's command line on every platform.
+    $found = @()
+    foreach ($p in @(Get-Process -ErrorAction SilentlyContinue)) {
+        if ($p.Id -eq $PID) { continue }
+        $cmd = ''
+        try { $cmd = [string]$p.CommandLine } catch { continue }
+        if (-not $cmd -or $cmd -notmatch '(reach\.ps1["'']?\s+run|Run-Lane\.ps1["'']?)(\s+["'']?([^\s"'']+))?') { continue }
+        $named = 'build'
+        if ($Matches[3] -and $Matches[3] -notlike '-*') { $named = $Matches[3] }
+        if ($cmd -match '-Lane\s+["'']?([^\s"'']+)') { $named = $Matches[1] }
+        if ($named -ne $laneConfig.Name) { continue }
+        if ($cmd -match '-(Status|Follow|Check|Watch|Stop|SelfTest|CloseFinished)\b') { continue }
+        $started = $null
+        try { $started = $p.StartTime } catch { continue }
+        $found += [pscustomobject]@{ Id = $p.Id; Started = $started; Line = ('pid {0}: {1}' -f $p.Id, $cmd.Trim()) }
+    }
+    return $found
+}
+
+function Invoke-LaneClose {
+    <#
+        Close the windows whose run has ended. What holds the lane is the lock's to say, as for -Check, so
+        the live supervisor is never one; what began before it, or before the newest ledger when nothing
+        holds it, has ended. The newest crashed one is kept, its window holding what the ledger's line may
+        not, and so is one that began after either, refused at a guard and saying why only in its window.
+    #>
+    param([string]$Root)
+    $holder = & $script:HolderProbe
+    $holderPid = 0
+    $holderSince = $null
+    if ($holder) {
+        $holderPid = [int](Get-Field $holder 'pid' 0)
+        $since = [string](Get-Field $holder 'since' '')
+        if ($since) { try { $holderSince = [datetime]::Parse($since, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime() } catch { } }
+    }
+    $ledger = Find-Ledger -Root $Root
+    $ledgerMade = $null
+    $crashed = $false
+    if ($ledger) {
+        $ledgerMade = (Get-Item -LiteralPath (Split-Path -Parent $ledger)).CreationTime
+        $ends = @(Read-LinesUtf8 $ledger | Where-Object { $_ -match $script:EndPattern })
+        if ($ends.Count -gt 0 -and (Get-EndCode $ends[-1]) -eq 4) { $crashed = $true }
+    }
+    $windows = @(& $script:WindowProbe | Sort-Object Started)
+    $newest = $null
+    if ($windows.Count -gt 0) { $newest = $windows[-1] }
+    $now = Get-Date
+    $closed = 0
+    foreach ($w in $windows) {
+        if ($w.Id -eq $holderPid) { continue }
+        $bound = $holderSince
+        if (-not $holder) { $bound = $ledgerMade }
+        if (($now - $w.Started) -lt $script:FreshWindow) { Out-Watch "kept: $($w.Line) -- it began under two minutes ago and may not have taken the lane yet."; continue }
+        if ($null -eq $bound -or $w.Started -gt $bound.AddSeconds(2)) { Out-Watch "kept: $($w.Line) -- it began after the run now on record, so it stopped at a guard and its window says why."; continue }
+        if (-not $holder -and $crashed -and $w -eq $newest) { Out-Watch "kept: $($w.Line) -- its run crashed, and its window may hold what the ledger does not."; continue }
+        try { & $script:WindowCloser $w.Id; $closed++; Out-Watch "closed: $($w.Line)" }
+        catch { Out-Watch "kept: $($w.Line) -- closing it failed: $($_.Exception.Message)" }
+    }
+    if ($closed -eq 0) { Out-Watch 'closed: none' }
+    return 0
+}
+
 function Invoke-LaneCheck {
     $holder = Get-LaneHolder -LaneWorktree $laneConfig.Worktree
     if ($holder) {
@@ -330,6 +408,7 @@ function Invoke-LaneCheck {
 }
 
 if ($Check) { exit (Invoke-LaneCheck) }
+if ($CloseFinished) { exit (Invoke-LaneClose -Root $LogRoot) }
 if ($Watch) { exit (Invoke-LaneWatch -Root $LogRoot -StatusPath $StatusFile -WaitForNew ([bool]$NewRun) -SkipWritten ([bool]$FromEnd)) }
 
 # ------------------------------------------------------------------------------- reading a run
@@ -643,6 +722,36 @@ function Invoke-SelfTest {
         Set-WatchFixture ($started + $finished)
         $w = Invoke-CapturedWatch -SkipWritten $true
         Assert ($w.Code -eq 0) 'a re-armed watch still finds a last line written in the gap'
+
+        # -CloseFinished: what began before the holder, or before the newest ledger, is closed; the holder, a
+        # start refused after it, a fresh one and the newest crashed one are kept.
+        $savedWindows = $script:WindowProbe; $savedCloser = $script:WindowCloser
+        $script:WindowCloser = { param([int]$Id) $script:ClosedIds.Add($Id) | Out-Null }
+        (Get-Item -LiteralPath (Split-Path -Parent $script:WatchLedger)).CreationTime = (Get-Date).AddMinutes(-30)
+        function Invoke-CapturedClose { param($Windows)
+            $script:Windows = $Windows
+            $script:WindowProbe = { $script:Windows }
+            $script:ClosedIds = New-Object System.Collections.Generic.List[int]
+            $script:Captured = New-Object System.Collections.Generic.List[string]
+            $null = Invoke-LaneClose -Root $watchRoot
+            $script:Captured = $null
+            return @($script:ClosedIds) }
+        function New-Window { param([int]$Id, [int]$MinutesAgo) [pscustomobject]@{ Id = $Id; Started = (Get-Date).AddMinutes(-$MinutesAgo); Line = "pid $Id" } }
+        $script:HolderProbe = { [pscustomobject]@{ pid = 5000; owner = 'Run-Lane'; since = (Get-Date).AddMinutes(-10).ToString('o') } }
+        $c = Invoke-CapturedClose @((New-Window 4242 60), (New-Window 5000 10), (New-Window 4300 5))
+        Assert (($c -contains 4242) -and -not ($c -contains 5000) -and -not ($c -contains 4300)) 'a window begun before the holder is closed, and the holder and a start refused after it are kept'
+        Set-WatchFixture ($started + $finished)
+        (Get-Item -LiteralPath (Split-Path -Parent $script:WatchLedger)).CreationTime = (Get-Date).AddMinutes(-30)
+        $script:HolderProbe = { $null }
+        $c = Invoke-CapturedClose @((New-Window 4242 60), (New-Window 4243 40), (New-Window 4244 10), (New-Window 4245 1))
+        Assert (($c -contains 4242) -and ($c -contains 4243)) 'with nothing holding the lane, windows begun before its newest ledger are closed'
+        Assert (-not ($c -contains 4244)) 'a window begun after the newest ledger, refused at a guard, is kept'
+        Assert (-not ($c -contains 4245)) 'a window under two minutes old is kept'
+        Set-WatchFixture ($started + '[10:05:00] supervisor CRASHED after 1 run(s): boom')
+        (Get-Item -LiteralPath (Split-Path -Parent $script:WatchLedger)).CreationTime = (Get-Date).AddMinutes(-30)
+        $c = Invoke-CapturedClose @((New-Window 4242 60), (New-Window 4243 40))
+        Assert (($c -contains 4242) -and -not ($c -contains 4243)) 'after a crash the newest window is kept and an older one closed'
+        $script:WindowProbe = $savedWindows; $script:WindowCloser = $savedCloser
     } finally {
         $script:WatchPoll = $savedPoll; $script:HolderProbe = $savedHolder; $script:TipProbe = $savedTip
         $script:WatchMaxPolls = 0

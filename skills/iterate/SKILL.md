@@ -53,6 +53,11 @@ builder that is not seeded is not a lane, and is skipped; seeding one is the own
      it: a run that died mid-work, or a session from before sessions claimed lanes. Ask the owner whether
      to start anyway.
    - **exit 0** with `lane: not seeded` — stop, and give the seed command it printed.
+
+   Then close what earlier launches left: `Scripts/reach.ps1 run <lane> -CloseFinished`, and relay its
+   lines. A launch keeps its window open after its run ends, so its last lines stay readable, and they pile
+   up one per finish. It closes every window whose run has ended and keeps the live one, a crash's newest
+   and a start refused at a guard, whose windows hold the reason, for the owner to read and close.
 2. **Pre-flight.** `Scripts/reach.ps1 run <lane> -SelfTest`. It proves the halt decision, the watch and
    the stop request on synthetic input in seconds. Anything but `SELF-TEST PASSED` and exit 0: show it
    and stop.
@@ -103,8 +108,8 @@ followed and only a lock released without a last line is stale.
 
 | Exit | Means | Do |
 |---|---|---|
-| 0 | the supervisor finished: a run succeeded and committed nothing with nothing to wait for, a run failed before committing anything, or a stop was honoured | Say which, from the lines before it. A halt on nothing committed means everything buildable is blocked on a question — name the design command as what comes next; a builder's halt over units all held or all needing the integrator's harness is not one, and says so. A halt on a failed run names its failure and is nobody's question: show it with the transcript path. |
-| 4 | it crashed | Show the crash line and the log path from `-Status`. Never restart it on your own. |
+| 0 | the supervisor finished: a run succeeded and committed nothing with nothing to wait for, a run failed before committing anything, or a stop was honoured | Say which, from the lines before it, then close its window with `-CloseFinished`. A halt on nothing committed means everything buildable is blocked on a question — name the design command as what comes next; a builder's halt over units all held or all needing the integrator's harness is not one, and says so. A halt on a failed run names its failure and is nobody's question: show it with the transcript path. |
+| 4 | it crashed | Show the crash line and the log path from `-Status`, and say its window is left open, since it may hold more than the ledger. Never restart it on your own. |
 | 2 | nothing holds the lane and its ledger never said it finished | It was killed or its window was closed. Show `-Status`; the owner's window is the record. |
 | 3 | `-NewRun` saw it never start | It failed a guard before its loop, and its window says which. |
 | 1 | nothing to watch | No ledger has been written. Nothing is running. |
@@ -118,11 +123,12 @@ The owner can type in this window while it follows. Answer them, and keep the wa
 
 **A stop is a request, and it lets the run in flight finish**, so that run still lands.
 `Scripts/reach.ps1 run <lane> -Stop`, and show what it prints. Keep the watch armed until the finish
-line arrives, and report it. Do this whenever the owner says stop, in words or with `stop`.
+line arrives, report it, and close its window with `-CloseFinished`. Do this whenever the owner says stop, in words or with `stop`.
 
 **Never kill the supervisor or its agent process yourself**, even when asked to hurry. That loses
 everything the run has not committed. If the owner wants it gone now, the hard stop is theirs: an
-interrupt in the supervisor's window. Say exactly that.
+interrupt in the supervisor's window. Say exactly that. **Closing a window `-CloseFinished` closes is not
+this**: its run has ended, and the process it stops is the shell kept open after it.
 
 ## What it never does
 
