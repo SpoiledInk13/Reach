@@ -378,8 +378,10 @@ verdict is a stalled walkthrough rather than a note.
 waited for.** Where the milestone command's tip lands only once the builder's work it carries is verified,
 it holds verdicts nobody can triage and so cannot act on: the triage waits on the land and the land on a
 verification, and the lane sits with nothing it can take. Copy each line byte for byte from what the lane
-added, write its arrow beneath it in the same commit, and say in the message that the lane's next sync
-conflicts there and takes the trunk's side. It lands no lane commit, so the lane is no ancestor of the trunk
+added, write its arrow beneath it in the same commit, and say in the message what the lane's next sync does
+there, read off a trial merge against the lane: it conflicts and takes the trunk's side, or **it merges clean holding
+both copies** and deletes its own. A carry of two lines once merged clean, which leaves the lane's bare pair beside
+the trunk's, reading as two verdicts nobody triaged. It lands no lane commit, so the lane is no ancestor of the trunk
 and its own work still lands with its own merge.
 
 **Before you stop, say whether the milestone command can act.** It reaches the owner nowhere else: where
