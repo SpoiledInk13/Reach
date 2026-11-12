@@ -1,35 +1,38 @@
-# Reach developer presentation — version 1.2
+# Reach developer presentation — version 2.0
 
-19 main slides and 6 appendix slides, with speaker notes. Allow approximately
-25–30 minutes for the main story; use the appendix for discussion.
-
-Version 1.2 brings the deck to Reach 0.17.0. It adds an appendix slide on the
-personal overlay — the whole process run over one contributor's own tasks on a
-team repository, promoting verified commits into the team's review — and mentions
-it where the deck discusses team repositories and landing. Both proof suites, 110
-controls, were run green for this version.
-
-## Storybook visual edition
-
-The illustrated edition uses the v1.2 copy and speaker notes, with the existing
-five storybook illustrations, skill labels, and editable diagrams, including the
-feedback loop, unattended iteration, the builder/integrator split, and the overlay.
+A 15–20 minute workplace talk for developers with mixed experience using AI.
+12 main slides target **13 minutes 45 seconds**, leaving 3–5 minutes for questions.
+Four optional appendix slides support discussion; they are outside the timed talk.
 
 - [Illustrated PowerPoint](Reach-developer-presentation-storybook.pptx)
 - [PDF preview](Reach-developer-presentation-storybook.pdf)
-- [Artwork and visual references](artwork/README.md)
+- [Slide copy, example artifacts, and speaker notes](Reach-developer-presentation-v2.0.md)
+- [Plain editable PowerPoint](Reach-developer-presentation-v2.0.pptx)
 
-Build it with `python presentation/build_storybook.py` after installing the same
-requirements below. The layout uses Georgia and Calibri, and its text-fit check
-uses their Windows font files. PowerPoint-rendered previews were used for review.
-The original v1.0 files remain available as the previous content baseline.
+## Presenting the talk
 
-- [Plain PowerPoint presentation](Reach-developer-presentation-v1.2.pptx)
-- [Slide text and speaker notes](Reach-developer-presentation-v1.2.md)
-- [Previous v1.0 content](Reach-developer-presentation-v1.0.md)
+Lead with the presenter's reason for using Reach for all coding: higher-quality
+results, regardless of project size. The original difficulty tracking intent and
+verification explains its development; quality explains its continued use.
+Explain what a plugin, skill, and contract mean before walking through the commands.
+The fictional Pip example illustrates
+one feature; it does not require game-development experience or a running demo.
 
-The fictional Pip story illustrates the workflow. The deck distinguishes that story
-from the presenter's experience and the repository's implemented mechanisms.
+| Slides | Purpose | Target |
+|---|---|---|
+| 1–4 | Why Reach exists, what it adds, and the three roles | 4:00 |
+| 5–9 | Adopt, decide, build, resolve a missing decision, try the result | 6:45 |
+| 10–12 | Continuity, quality benefits, and the takeaway | 3:00 |
+| Discussion | Questions; use an appendix only when relevant | 3–5 minutes |
+
+Speaker notes contain a time target, a talk track, and local source references.
+The walkthrough shows the contract, evidence case, and question handoff. It is
+illustrative, not a report of a tested sample application. Personal observations
+are distinguished from expected benefits; no productivity multiplier is claimed.
+
+For a strict 15-minute slot, keep the walkthrough to the displayed cases and
+reserve about a minute for questions. For 20 minutes, use the full discussion
+allowance. Rehearse once against the target times; these are pacing estimates.
 
 ## Rebuild
 
@@ -42,13 +45,22 @@ python presentation/build_storybook.py
 powershell -NoProfile -ExecutionPolicy Bypass -File presentation/export_preview.ps1
 ```
 
-Edit `story_slides.py` for the main narrative and benefit inventory.
-Edit `build_deck.py` for the technical appendix and plain layout.
-The generators write the versioned plain PowerPoint and Markdown files and the
-current illustrated PowerPoint. They check slide contents, speaker notes, and
-object bounds; the illustrated generator also checks text fit. The export script
-requires desktop PowerPoint on Windows and refreshes the illustrated PDF and local
-PNG previews in `storybook-preview/`.
+An optional local dependency install is supported with
+`python -m pip install --target presentation/.deps -r presentation/requirements.txt`.
 
-Local review drafts and Python caches are ignored. Version 1.0 preserves the content
-approved in review draft v13.
+Edit `talk_slides.py` for all current slide copy, example artifacts, and speaker
+notes. `build_deck.py` generates the versioned plain deck and Markdown companion;
+`build_storybook.py` generates the current illustrated deck. Layout choices travel
+with the slide data, so reordering does not misassign diagrams or artwork.
+
+The builders validate saved content, notes, and object bounds. The illustrated
+builder also estimates text fit using Georgia and Calibri Windows font files.
+The export script requires desktop PowerPoint on Windows and refreshes the PDF
+and local PNG previews in `storybook-preview/`. It opens the deck without a window.
+
+## Previous editions
+
+The v1.0 and v1.2 plain decks and Markdown files remain available. `story_slides.py`
+preserves the previous longer narrative; the current builders use `talk_slides.py`.
+The current illustrated deck reuses the existing [storybook artwork](artwork/README.md).
+Local drafts, dependency packages, Python caches, and PNG previews are ignored.

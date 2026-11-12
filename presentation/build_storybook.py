@@ -26,28 +26,6 @@ GREEN = '3D7258'
 FONT = 'Calibri'
 TITLE = 'Georgia'
 
-ROLES = [
-    ('REACH', INK), ('THE ORIGIN', INK), ('THE STORY', INK), ('THE DESIGN GAP', RUST),
-    ('THE WORKFLOW', INK), ('IDEATE', INK), ('BUILD', RUST), ('BUILD', RUST),
-    ('IDEATE', INK), ('IDEATE', INK), ('IDEATE → BUILD', INK), ('BUILD', RUST),
-    ('REACH SCRIPTS', INK), ('ITERATE', INK), ('MILESTONE', GOLD),
-    ('THE FEEDBACK LOOP', RUST), ('THE HANDOFF', INK),
-    ('IN PRACTICE', INK), ('PROJECT FIT', INK), ('BENEFITS', INK),
-    ('ADOPT', INK), ('REPOSITORY MAP', INK), ('VERIFICATION', RUST),
-    ('BUILDERS + INTEGRATOR', RUST), ('PERSONAL OVERLAY', RUST),
-]
-SCENES = {
-    1: ('pip-paperwork.png', 'The process grew. The playable goal stayed small.'),
-    2: ('pip-cottage-open.png', 'One destination: the warm fireplace inside.'),
-    3: ('pip-door-closed.png', 'The route is blocked. The design decision is still open.'),
-    5: ('pip-cottage-open.png', 'Decide what the player should expect.'),
-    7: ('pip-door-closed.png', 'A blocked claim becomes a question for ideate.'),
-    9: ('pip-window-open.png', 'Same destination. A second kind of opening.'),
-    14: ('pip-fireplace.png', 'Working behavior still needs a human verdict.'),
-    16: ('pip-fireplace.png', 'The warmth is the outcome. The contract carries the understanding.'),
-    17: ('pip-cottage-open.png', 'Think together about the whole game.'),
-}
-
 
 def rgb(h):
     return RGBColor.from_string(h)
@@ -105,67 +83,6 @@ def picture(slide, name, x, y, w):
     return slide.shapes.add_picture(str(ART/name), Inches(x), Inches(y), width=Inches(w))
 
 
-def diagram(slide, index):
-    x, w = 7.5, 5.15
-    if index == 6:
-        for i, (head, body, color) in enumerate([
-            ('01  AGREED BEHAVIOR', 'Closed door → Pip stays put', INK),
-            ('02  NAMED EVIDENCE', 'Position + blocked-route state', RUST),
-            ('03  VERIFICATION', 'Tests → game build → explicit result', GREEN),
-        ]):
-            card(slide,x,2.22+i*1.15,w,1.02,head,body,color)
-    elif index == 8:
-        card(slide,x,2.25,w,1.15,'BUILD → OPEN QUESTION','What if the door closes mid-walk?',RUST)
-        text(slide,x+2.3,3.48,.6,.4,'↓',24,MUTED)
-        card(slide,x,4.02,w,1.42,'IDEATE → UPDATED CONTRACT','Stop before the obstacle.\nKeep the last valid position.',INK)
-        text(slide,x,5.66,w,.62,'Build syncs the answer and removes its Open.',17,MUTED)
-    elif index == 10:
-        card(slide,x,2.22,w,1.46,'OPENING','Open / closed\nLocked / unlocked',INK)
-        line(slide,x+w/2,3.68,x+w/2,3.98)
-        line(slide,x+1.2,3.98,x+w-1.2,3.98)
-        line(slide,x+1.2,3.98,x+1.2,4.16)
-        line(slide,x+w-1.2,3.98,x+w-1.2,4.16)
-        card(slide,x,4.16,2.45,1.2,'DOOR','Shared rules',RUST)
-        card(slide,x+2.7,4.16,2.45,1.2,'WINDOW','Shared rules',RUST)
-        text(slide,x,5.59,w,.62,'Traverse when open, reachable, and large enough.',18,MUTED)
-    elif index == 11:
-        rows=[('BREAK IT','Closed opening allows passage',RUST),('EXPECT RED','The movement assertion fails',RUST),('RESTORE','Door + window cases pass',GREEN),('KEEP RUNNING','Catch the rule breaking again',GREEN)]
-        for i,(h,b,c) in enumerate(rows):
-            box(slide,x,2.15+i*.94,w,.8,WHITE,LINE,True)
-            text(slide,x+.18,2.27+i*.94,1.58,.45,h,15,c,True)
-            text(slide,x+1.83,2.27+i*.94,3.08,.52,b,17)
-    elif index == 12:
-        card(slide,x,2.22,2.45,1.22,'BUILD','Own worktree',RUST)
-        card(slide,x+2.7,2.22,2.45,1.22,'MILESTONE','Own worktree',GOLD)
-        text(slide,x,3.67,w,.4,'Verified commit → checked merge',19,INK,True)
-        card(slide,x,4.3,w,1.18,'INTEGRATION','Publish the accepted decisions and code.',INK)
-        text(slide,x,5.72,w,.42,'Ideate syncs before the next conversation.',17,MUTED)
-    elif index == 13:
-        card(slide,x,2.22,w,1.02,'ONE RUN','Implement → verify → land',RUST)
-        text(slide,x+2.3,3.32,.6,.4,'↓',24,MUTED)
-        card(slide,x,3.82,w,1.02,'FRESH RUN','Read the documents. Pick up the work.',GREEN)
-        text(slide,x,5.04,w,.65,'Your console follows progress\nand relays a stop request.',18,INK)
-        text(slide,x,5.96,w,.62,'Explicit opt-in; agent permission\nprompts disabled.',16,MUTED)
-    elif index == 15:
-        rows = [('OWNER FINDS BUG', 'Pip crossed a closed door.', GOLD),
-                ('IDEATE FINDS RULE', 'Stop before the obstacle.', INK),
-                ('BUILD TESTS + FIXES', 'New case catches the crossing.', RUST),
-                ('OWNER RETRIES', 'Confirm on the real build.', GREEN)]
-        for i, (heading, body, accent) in enumerate(rows):
-            card(slide, x, 2.22+i*1.07, w, 1.02, heading, body, accent)
-    elif index == 23:
-        card(slide,x,2.22,2.45,1.5,'BUILDER 1','Claim + prove\nReady commit',RUST)
-        card(slide,x+2.7,2.22,2.45,1.5,'BUILDER 2','Claim + prove\nReady commit',RUST)
-        text(slide,x,3.92,w,.4,'Ready tips → merged batch',19,INK,True)
-        card(slide,x,4.55,w,1.45,'INTEGRATOR','Every tier, including the harness.\nThen land the verified tree.',GREEN)
-    elif index == 24:
-        card(slide,x,2.22,w,1.02,'YOUR FOLDER','Documents + shim. Never committed.',INK)
-        text(slide,x+2.3,3.3,.6,.4,'↓',24,MUTED)
-        card(slide,x,3.78,w,1.02,'YOUR TASK BRANCH','you/<name>: code, tests, marks',RUST)
-        text(slide,x,4.92,w,.4,'promote: every tier, then push',19,INK,True)
-        card(slide,x,5.45,w,1.02,'TEAM REVIEW','<name> → merge request',GREEN)
-
-
 def fit_check(prs):
     issues=[]
     for i,s in enumerate(prs.slides,1):
@@ -198,70 +115,83 @@ def fit_check(prs):
 
 
 def build():
-    prs=Presentation()
-    prs.slide_width,prs.slide_height=Inches(13.333), Inches(7.5)
-    prs.core_properties.title='Reach — storybook visual edition'
-    prs.core_properties.subject=f'Content v{VERSION} with storybook artwork and editable diagrams'
-    prs.core_properties.version=VERSION
-    prs.core_properties.author='Amelia Bleeker'
-    assert len(ROLES) == len(SLIDES)
-    for index,item in enumerate(SLIDES):
-        s=prs.slides.add_slide(prs.slide_layouts[6])
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    prs.core_properties.title = 'Reach — a workflow for better code'
+    prs.core_properties.subject = f'Workplace developer talk v{VERSION}; 15–20 minutes including questions'
+    prs.core_properties.version = VERSION
+    prs.core_properties.author = 'Amelia Bleeker'
+    for index, item in enumerate(SLIDES):
+        s = prs.slides.add_slide(prs.slide_layouts[6])
         s.background.fill.solid()
-        s.background.fill.fore_color.rgb=rgb(PAPER)
-        role,accent=ROLES[index]
-        box(s,.58,.43,.11,.18,accent)
-        text(s,.83,.39,11,.3,role if index==0 else role+'  /  REACH',12,accent,True)
-        if index==0:
-            box(s,6.6,0,6.733,7.5,INK)
-            picture(s,'pip-cottage-open.png',6.82,1.5,6.28)
-            text(s,.7,1.27,5.55,2.17,item['title'],35,INK,False,TITLE)
-            text(s,.7,3.58,5.3,.85,item['subtitle'],22,MUTED)
-            for j,b in enumerate(item['bullets']):
-                text(s,.7,4.65+j*.84,5.25,.75,b,20)
-            text(s,7.04,6.06,5.5,.76,'A story about intent, implementation,\nand knowing what is true.',20,PAPER)
+        s.background.fill.fore_color.rgb = rgb(PAPER)
+        accent = RUST if 'BUILD' in item['section'] else INK
+        box(s, .58, .43, .11, .18, accent)
+        text(s, .83, .39, 11, .3, item['section'] + '  /  REACH', 12, accent, True)
+        if index == 0:
+            box(s, 6.6, 0, 6.733, 7.5, INK)
+            picture(s, item['scene'], 6.82, 1.5, 6.28)
+            text(s, .7, 1.22, 5.55, 2.2, item['title'], 34, INK, False, TITLE)
+            text(s, .7, 3.58, 5.3, .85, item['subtitle'], 22, MUTED)
+            for j, b in enumerate(item['bullets']):
+                text(s, .7, 4.65+j*.86, 5.25, .8, b, 20)
+            text(s, 7.04, 6.06, 5.5, .8, item['caption'], 20, PAPER)
         else:
-            text(s,.65,.95,12.05,.66,item['title'],28,INK,False,TITLE)
-            text(s,.68,1.7,12,.43,item['subtitle'],19,MUTED)
-            line(s,.68,2.03,12.65,2.03)
-            if index==4:
-                for j,(h,b,c) in enumerate(zip(['IDEATE','BUILD','MILESTONE'],item['bullets'],[INK,RUST,GOLD])):
-                    x=.68+j*4.06
-                    card(s,x,2.64,3.82,2.62,h,b,c)
-                    text(s,x+.2,5.49,3.4,.5,['Your judgment','Automated evidence','Tests + your judgment'][j],20,c,True)
+            text(s, .65, .95, 12.05, .72, item['title'], 28, INK, False, TITLE)
+            text(s, .68, 1.7, 12, .43, item['subtitle'], 19, MUTED)
+            line(s, .68, 2.13, 12.65, 2.13)
+            if item.get('layout') == 'roles':
+                for j, (heading, body, color, judge) in enumerate(zip(
+                    ['IDEATE', 'BUILD', 'MILESTONE'], item['bullets'], [INK, RUST, GOLD],
+                    ['Your design judgment', 'Automated evidence', 'Tests + your judgment'])):
+                    x = .68 + j*4.06
+                    card(s, x, 2.64, 3.82, 2.62, heading, body, color)
+                    text(s, x+.2, 5.49, 3.42, .65, judge, 20, color, True)
+                text(s, .88, 6.12, 11.3, .35, 'Missing decision? Return to ideate. Update the agreement. Resume.', 17, MUTED)
             else:
-                split=index in SCENES or index in (6,8,10,11,12,13,15,23,24)
-                w=6.28 if split else 11.52
-                row=.94 if len(item['bullets'])<=4 else .86
-                for j,b in enumerate(item['bullets']):
-                    text(s,.72,2.37+j*row,.34,.36,f'{j+1:02}',11,accent,True)
-                    text(s,1.16,2.3+j*row,w-.48,row-.09,b,20 if split else 22)
-                if index in SCENES:
-                    name,caption=SCENES[index]
-                    picture(s,name,7.35,2.3,5.3)
-                    text(s,7.38,5.97,5.25,.57,caption,16,MUTED)
-                elif split:
-                    diagram(s,index)
+                split = any(key in item for key in ('scene', 'cards', 'artifact'))
+                width = 5.8 if split else 11.52
+                for j, b in enumerate(item['bullets']):
+                    text(s, .72, 2.49+j*.98, .34, .36, f'{j+1:02}', 11, accent, True)
+                    text(s, 1.16, 2.42+j*.98, width, .88, b, 20 if split else 23)
+                if item.get('scene'):
+                    picture(s, item['scene'], 7.35, 2.4, 5.3)
+                    text(s, 7.38, 5.97, 5.25, .65, item['caption'], 16, MUTED)
+                elif item.get('cards'):
+                    for j, (heading, body) in enumerate(item['cards']):
+                        card(s, 7.45, 2.43+j*1.38, 5.2, 1.36, heading, body, accent)
+                elif item.get('artifact'):
+                    heading, body = item['artifact']
+                    box(s, 7.45, 2.43, 5.2, 3.9, WHITE, LINE, True)
+                    box(s, 7.45, 2.43, .055, 3.9, accent)
+                    text(s, 7.67, 2.64, 4.76, .4, heading, 16, accent, True)
+                    text(s, 7.67, 3.2, 4.76, 2.9, body, 21)
             if item.get('payoff'):
-                box(s,.66,6.66,12,.06,accent)
-                text(s,.72,6.84,11.95,.34,item['payoff'],16,accent,True)
-        text(s,.68,7.24,11.55,.18,f'REACH  ·  CONTENT v{VERSION}  ·  STORYBOOK EDITION'+('  /  APPENDIX' if item.get('appendix') else ''),9,MUTED)
-        text(s,12.12,7.2,.5,.23,f'{index+1:02}',11,MUTED)
-        s.notes_slide.notes_text_frame.text=(f"SLIDE {index+1}: {item['title']}\n\n{item['notes']}"
-            +(f"\n\nPRACTICAL BENEFIT: {item['payoff']}" if item.get('payoff') else '')
-            +f"\n\nSOURCE BASIS: {item['source']}\n\nART: AI-generated fictional storybook scene; diagrams are editable PowerPoint objects.")
+                box(s, .66, 6.7, 12, .045, accent)
+                text(s, .72, 6.87, 11.95, .34, item['payoff'], 16, accent, True)
+        footer = f'REACH  ·  v{VERSION}  ·  DEVELOPER TALK'
+        if item.get('appendix'):
+            footer += '  /  OPTIONAL APPENDIX'
+        text(s, .68, 7.25, 11.55, .18, footer, 9, MUTED)
+        text(s, 12.12, 7.21, .5, .23, f'{index+1:02}', 11, PAPER if index == 0 else MUTED)
+        timing = f"TARGET: {item['seconds']} seconds" if item.get('seconds') else 'OPTIONAL APPENDIX'
+        s.notes_slide.notes_text_frame.text = (
+            f"SLIDE {index+1}: {item['title']}\n\n{timing}\n\n{item['notes']}"
+            + (f"\n\nPRACTICAL BENEFIT: {item['payoff']}" if item.get('payoff') else '')
+            + f"\n\nSOURCE BASIS: {item['source']}"
+            + '\n\nART: Existing AI-generated fictional artwork; diagrams and text are editable.'
+        )
     fit_check(prs)
     prs.save(OUTPUT)
-    check=Presentation(OUTPUT)
+    check = Presentation(OUTPUT)
     assert len(check.slides) == len(SLIDES)
-    for s,item in zip(check.slides,SLIDES):
-        text_content='\n'.join(sh.text for sh in s.shapes if sh.has_text_frame)
-        assert item['title'] in text_content
-        assert item['subtitle'] in text_content
-        assert all(b in text_content for b in item['bullets'])
+    for s, item in zip(check.slides, SLIDES):
+        content = '\n'.join(sh.text for sh in s.shapes if sh.has_text_frame)
+        assert item['title'] in content and item['subtitle'] in content
+        assert all(b in content for b in item['bullets'])
         assert item['notes'] in s.notes_slide.notes_text_frame.text
-    print(f'Built {OUTPUT}; {len(check.slides)} slides; source copy preserved; text fit and geometry checked.')
+    print(f'Built {OUTPUT}; {len(check.slides)} slides; copy, notes, text fit and geometry checked.')
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     build()
