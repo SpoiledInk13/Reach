@@ -160,9 +160,13 @@ the fixed tip ready supersedes it. A conflict is fixed by syncing integration an
 other side having landed by then.
 
 **A jam is the first work.** When nothing has landed on integration for a day —
-`git log -1 --first-parent --format=%cr <integration>` — while a lane holds proven work it lacks, a run
-starts nothing new: it fixes what holds the land, its own rejection or the red another lane's tip shows
-over its work, and marks the result ready. Every commit built on a tip that cannot land makes the land
+`git log -1 --first-parent --format=%cr <integration>` — while a lane holds proven work it lacks, a run of
+a lane holding work no ready mark of its covers, or a red another lane's tip shows over its work, starts
+nothing new: it fixes what holds the land, its own rejection or that red, and marks the result ready. **A lane
+whose work is all marked ready, and which holds nobody's red, goes on**: it is waiting on the integrator
+rather than holding the land, and stopping it lands nothing sooner — one such lane stood a run idle with its
+ready tip in the integrator's sweep. What it builds then is unready, so its next run is held until that is
+marked too, and a lane in a jam carries one unit past its mark at most. Every commit built on a tip that cannot land makes the land
 that finally comes larger and its sweep longer: one project's lanes built on for a week over tips
 nothing could land, each about six hundred commits ahead by the end, and the targeted check list over
 one of them read seventy checks where one unit's reads a handful.
