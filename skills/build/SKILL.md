@@ -159,6 +159,20 @@ that before anything else. A rejection names why — a tier the sweep reddened, 
 the fixed tip ready supersedes it. A conflict is fixed by syncing integration and proving again, the
 other side having landed by then.
 
+**A jam is the first work.** When nothing has landed on integration for a day —
+`git log -1 --first-parent --format=%cr <integration>` — while a lane holds proven work it lacks, a run
+starts nothing new: it fixes what holds the land, its own rejection or the red another lane's tip shows
+over its work, and marks the result ready. Every commit built on a tip that cannot land makes the land
+that finally comes larger and its sweep longer: one project's lanes built on for a week over tips
+nothing could land, each about six hundred commits ahead by the end, and the targeted check list over
+one of them read seventy checks where one unit's reads a handful.
+
+**A red holding others a day is backed out.** A rejection standing a day for the same red, or a red
+another lane's tip has shown over this lane's work for a day, is no longer fixed forward: this lane
+reverts its own commits that cause it — `git revert`, never a reset, so a lane that merged them takes the
+revert in at its next sync — marks that ready, and brings the work back fixed on top of the land. A red
+waited on cost that project a week; one backed out costs a day and the rework.
+
 **The integrator integrates first** — at the start of every run and at every batch boundary — because a
 builder waits on nothing else. `reach.ps1 builders pending` lists the ready tips; merge each into the lane
 as `git merge --no-ff --no-edit refs/ready/<builder>`, that exact form, which is what the supervisor
