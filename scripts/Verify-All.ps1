@@ -53,6 +53,11 @@
 
 .PARAMETER Plan
     Print what changed since the integration branch and what a run would cover, and run nothing.
+
+.PARAMETER FailFast
+    Stop at the first failing tier: every tier after it is NOT RUN, because the work goes back whatever
+    they read. The integrator's sweep -- one project's sweeps ran four hours each to send back a tip over
+    a red known in the first, five times in six. A green run runs every tier, so it costs a land nothing.
 #>
 [CmdletBinding()]
 param(
@@ -61,7 +66,8 @@ param(
     [switch]$List,
     [switch]$SkipGate,
     [switch]$Whole,
-    [switch]$Plan
+    [switch]$Plan,
+    [switch]$FailFast
 )
 
 Set-StrictMode -Version Latest
@@ -192,6 +198,10 @@ foreach ($t in $Tiers) {
     $id = Get-Field $t 'id' '?'
     $name = "tier {0} -- {1}" -f $id, (Get-Field $t 'what' '')
     if ($Tier -and $id -ne $Tier) { continue }
+    if ($FailFast -and @($results | Where-Object { $_.Verdict -eq 'FAIL' }).Count -gt 0) {
+        Add-Result $name 'NOT RUN' '-FailFast: a red already stands, and the work goes back whatever this reads'
+        continue
+    }
 
     if (Get-Field $t 'human' $false) {
         Add-Result $name 'HUMAN' 'not verifiable here, and nothing that runs may say otherwise'

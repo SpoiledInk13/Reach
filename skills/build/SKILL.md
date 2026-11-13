@@ -177,13 +177,14 @@ waited on cost that project a week; one backed out costs a day and the rework.
 builder waits on nothing else. `reach.ps1 builders pending` lists the ready tips; merge each into the lane
 as `git merge --no-ff --no-edit refs/ready/<builder>`, that exact form, which is what the supervisor
 counts as the run's work. A merge that conflicts is aborted and sent back,
-`reach.ps1 builders reject <builder> -Reason <why>`. Then one sweep runs over everything merged and the
+`reach.ps1 builders reject <builder> -Reason <why>`. Then one sweep, `reach.ps1 all -FailFast`, runs over everything merged and the
 integrator's own commits, and green lands it all as one land, a builder's tip counting as one of the
 batch's three (**Committing**). **A red sweep is localised before anything lands, by the checks that
 failed and never by sweeping again**: reset the lane to before the merges — they are unlanded, so nothing
 is lost — run only what failed over each tip merged alone, reject each tip it reddens with the check and
 its line, and start the run again; the tips not rejected are still pending, so the next sweep takes them.
-Sweeping each tip alone cost one project two hours a candidate to learn what one check already knew. Then the integrator builds, **what needs the harness
+Sweeping each tip alone cost one project two hours a candidate to learn what one check already knew. **A sweep stops at its first failing tier**, because the batch goes back whatever the rest reads: one project's
+sweeps ran four hours to send back a tip over a red known in the first, five times in six. A green sweep runs every tier. Then the integrator builds, **what needs the harness
 before what a builder could take**: once the builders' work runs short, an integrator spending its run on
 harness-free work leaves every builder halted over units it holds and every harness row waiting on it —
 measured once as two builders stopping five minutes into their runs.
